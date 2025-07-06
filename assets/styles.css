@@ -1,0 +1,126 @@
+/* Brand Colors */
+:root {
+  --accent: #1f6feb;       /* NichoSec blue */
+  --bg-dark: #0e1b26;      /* Logo base tone */
+  --text-light: #f0f4f8;
+}
+
+/* Background watermark */
+.stApp::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  background: url("/assets/nichosec_bg.png") center center no-repeat;
+  background-size: 20%;
+  opacity: 0.02;
+  z-index: -1;
+  pointer-events: none;
+}
+
+/* Control Panel & Sidebar */
+[data-testid="stSidebar"] {
+  background-color: var(--bg-dark) !important;
+}
+
+.stSidebarContent h3 {
+  color: var(--accent);
+}
+
+/* Tabs */
+.stTabs [data-baseweb="tab"][aria-selected="true"] {
+  color: var(--accent);
+  border-bottom: 2px solid var(--accent);
+}
+
+/* Status bar */
+.status-bar {
+  height: 6px;
+  background: linear-gradient(to right, #1f6feb, #0e4429);
+  margin-top: 20px;
+}
+
+/* Threat Cards */
+.card.threat {
+  background-color: #2d2d2d;
+  border-left: 5px solid red;
+  padding: 1rem;
+  margin: 1rem 0;
+  color: var(--text-light);
+}
+
+.card.safe {
+  background-color: #1e1e1e;
+  border-left: 5px solid green;
+  padding: 1rem;
+  margin: 1rem 0;
+  color: var(--text-light);
+}
+
+/* Buttons */
+button[kind="primary"] {
+  background-color: var(--accent) !important;
+  border-color: var(--accent) !important;
+  color: white !important;
+}
+/* Scanning outline effect */
+@keyframes glowSweep {
+  0%   { box-shadow: 0 0 4px 0px rgba(255,255,255,.6); }
+  50%  { box-shadow: 0 0 18px 4px rgba(255,255,255,.9); }
+  100% { box-shadow: 0 0 4px 0px rgba(255,255,255,.6); }
+}
+
+.shield-scan {
+  animation: glowSweep 2s linear infinite;
+  border-radius: 12px;
+}
+
+/* Flash effect on scan complete */
+@keyframes flashPulse {
+  0%   { filter: brightness(1);   }
+  40%  { filter: brightness(2.3); }
+  100% { filter: brightness(1);   }
+}
+
+.shield-flash {
+  animation: flashPulse 550ms ease-in-out;
+}
+
+/* ---------- logo stack ---------- */
+#nichosecLogoWrap{
+  position:relative;
+  width:120px;               /* tweak sizes to taste */
+  margin:0 auto 1.2rem;
+}
+#nichosecLogoWrap img{
+  width:100%;
+  display:block;
+}
+
+/* Bottom layer – normal shield */
+.shield-base{
+  filter:brightness(1);       /* feel free to tweak tint here */
+}
+
+/* Top layer – animated outline / flash */
+.shield-anim{
+  position:absolute;
+  top:0; left:0;
+  animation: glowSweep 2s linear infinite;  /* scanning loop  */
+  pointer-events:none;
+}
+
+/* Flash when scan completes: add & remove shield-flash via JS */
+.shield-anim.shield-flash{ animation: flashPulse 0.5s ease-in-out; }
+
+/* Scanning outline keyframes */
+@keyframes glowSweep{
+  0%   { box-shadow:0 0 4px  var(--accent); }
+  50%  { box-shadow:0 0 16px var(--accent); }
+  100% { box-shadow:0 0 4px  var(--accent); }
+}
+/* One-off completion flash */
+@keyframes flashPulse{
+  0%  { filter:brightness(1); }
+  50% { filter:brightness(2); }
+ 100% { filter:brightness(1); }
+}

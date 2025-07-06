@@ -1,0 +1,11 @@
+// .vscode/settings.json  (workspace-level)
+{
+    // Tell Pylance where the top-level “src/” lives
+    "python.analysis.extraPaths": ["${workspaceFolder}/src"],
+
+    // Point VS Code to the venv you actually run
+    "python.defaultInterpreterPath": "${workspaceFolder}/venv/Scripts/python.exe",
+
+    // Auto-load env vars for things like OPENAI_API_KEY
+    "python.envFile": "${workspaceFolder}/.env"
+}
