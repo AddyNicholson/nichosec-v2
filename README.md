@@ -68,7 +68,7 @@ Make sure to enable:
 
 **Addison Jade Nicholson**  
 GitHub: [@AddyNicholson](https://github.com/AddyNicholson)  
-Email: \mraddison.nicholson@gmail.com\
+Email: mraddison.nicholson@gmail.com
 
 ---
 
