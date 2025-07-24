@@ -2,7 +2,7 @@
 src/core/extractors.py
 Turn common document/file formats into plain UTF-8 text.
 
-Pure-Python helpers – zero Streamlit imports, so they can be unit-tested
+Pure-Python helpers - zero Streamlit imports, so they can be unit-tested
 or reused in non-UI contexts.
 """
 

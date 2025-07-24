@@ -1,0 +1,30 @@
+{
+  "level": "RED",
+  "summary": "Significant phishing or malicious indicators detected (RED, score=50.0)",
+  "reasons": [
+    "The sender's email address appears suspicious and does not match the name displayed.",
+    "The subject line contains excessive use of emojis and unusual formatting, which is common in phishing attempts.",
+    "The email contains links to a storage.googleapis.com domain, which is often used to host malicious content.",
+    "The content of the email promotes a casino and offers a large monetary bonus, which is a common tactic in phishing scams.",
+    "The email requests verification of personal information, which is a typical phishing strategy to steal sensitive data.",
+    "The overall formatting and language used in the email are inconsistent and unprofessional, indicating it may not be legitimate.",
+    "Mail relayed via high-risk IP (fraud ≥ 70)",
+    "Scanned 1 IP(s); avg threat score: 75.0",
+    "1 IP(s) marked as HIGH risk"
+  ],
+  "ips": [
+    "15.204.254.62"
+  ],
+  "components": {
+    "auth": 0,
+    "ip": 0.0,
+    "content": 0,
+    "llm": 50
+  },
+  "scan_time": 2.53,
+  "threat_summary": "The email poses a critical threat level due to a high-risk IP address, a suspicious sender address, and indicators of phishing through excessive emojis and links to potentially malicious content.",
+  "from": "\"💸MRADDISON.NICHOLSON💸\" <8vkDSFMAmlnjBd7Pew@8vkDSFMAmlnjBd7Pew.net>",
+  "to": "mraddison.nicholson@gmail.com",
+  "subject": "💸𝐕é𝐫𝐢𝐟𝐢𝐞_𝐓𝐨𝐧_𝐂𝐨𝐦𝐩𝐭𝐞_ mraddison.nicholson,_💰𝐆𝐚𝐥𝐚𝐱𝐲_𝐒𝐩𝐢𝐧𝐬_𝐂𝐚𝐬𝐢𝐧𝐨💰_𝙀𝙣 𝙖𝙩𝙩𝙚𝙣𝙩𝙚_$5000.00▶️▶️(💰𝗕𝗢𝗡𝗨𝗦💰)◀️◀️___#💲💲🔔💎___192",
+  "date": "Tue, 15 Jul 2025 07:47:57 -0400"
+}

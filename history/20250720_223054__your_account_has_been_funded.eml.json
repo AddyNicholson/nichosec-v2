@@ -1,0 +1,30 @@
+{
+  "level": "GREEN",
+  "summary": "No signs of phishing or malicious activity (GREEN, score=10.0)",
+  "reasons": [
+    "Matched '\\bunsubscribe\\b' (+-1)",
+    "The subject line suggests a financial incentive ('Your account has been funded - $600 bonus'), which is a common tactic in phishing attempts.",
+    "The email contains a suspicious link (https://tenemarkets.com/redirect/202507/1751441701.php?snippet=3DGAVLW2432166818) that does not match the sender's domain and could lead to a malicious site.",
+    "The sender's email address (jean.stookey@teresanto.com) does not appear to be associated with a legitimate organization that would offer such bonuses.",
+    "The email uses a generic greeting ('Hello') instead of addressing the recipient by name, which is often a sign of phishing.",
+    "The email lacks specific details about the account or service, which is typical in phishing attempts to lure users into clicking links.",
+    "Mail relayed via high-risk IP (fraud ≥ 70)",
+    "Scanned 1 IP(s); avg threat score: 38.0",
+    "1 IP(s) marked as MODERATE risk"
+  ],
+  "ips": [
+    "204.194.223.147"
+  ],
+  "components": {
+    "auth": -30,
+    "ip": 0.0,
+    "content": -10,
+    "llm": 50
+  },
+  "scan_time": 3.6,
+  "threat_summary": "The overall threat level is GREEN, with main risk indicators being the suspicious link leading to a non-matching domain and the financial incentive in the subject line, which are common tactics in phishing attempts.",
+  "from": "Jean Stookey <jean.stookey@teresanto.com>",
+  "to": "2432166818 <mraddison.nicholson@gmail.com>",
+  "subject": "Your account has been funded",
+  "date": "Tue, 08 Jul 2025 00:05:33 +0000"
+}

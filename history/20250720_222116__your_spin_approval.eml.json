@@ -1,0 +1,29 @@
+{
+  "level": "GREEN",
+  "summary": "No signs of phishing or malicious activity (GREEN, score=10.0)",
+  "reasons": [
+    "Matched '\\bunsubscribe\\b' (+-1)",
+    "The visible link redirects to 'tenemarkets.com', which is not associated with the sender's domain (teresanto.com).",
+    "The email contains unusual and garbled text, which may indicate it was generated or altered by malicious software.",
+    "The sender's name and email address do not match the content of the email, raising suspicion about the legitimacy of the communication.",
+    "The email prompts the recipient to click on a link without providing clear context or verification of the sender's identity.",
+    "Mail relayed via high-risk IP (fraud ≥ 70)",
+    "Scanned 1 IP(s); avg threat score: 38.0",
+    "1 IP(s) marked as MODERATE risk"
+  ],
+  "ips": [
+    "204.194.223.165"
+  ],
+  "components": {
+    "auth": -30,
+    "ip": 0.0,
+    "content": -10,
+    "llm": 50
+  },
+  "scan_time": 4.52,
+  "threat_summary": "The overall threat level is GREEN, with main risk indicators including a suspicious external link to 'tenemarkets.com' and the presence of unusual text suggesting potential malicious alteration.",
+  "from": "Jean Stookey <jean.stookey@teresanto.com>",
+  "to": "2432166818 <mraddison.nicholson@gmail.com>",
+  "subject": "Your spin approval",
+  "date": "Fri, 18 Jul 2025 11:45:29 +0000"
+}

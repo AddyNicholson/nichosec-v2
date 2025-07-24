@@ -1,0 +1,26 @@
+{
+  "level": "GREEN",
+  "summary": "No signs of phishing or malicious activity (GREEN, score=0.0)",
+  "reasons": [
+    "Matched '\\bunsubscribe\\b' (+-1)",
+    "The email is from a recognized domain (linkedin.com) and uses a valid LinkedIn email address.",
+    "The DKIM and SPF checks passed, indicating that the email is authenticated and not spoofed.",
+    "The content of the email is relevant to the recipient's interests (job alerts) and includes multiple legitimate job postings.",
+    "There is a clear option to unsubscribe from future emails, which is a good practice for legitimate marketing emails.",
+    "Scanned 3 IP(s); avg threat score: 20.0",
+    "2 IP(s) marked as MODERATE risk"
+  ],
+  "ips": [],
+  "components": {
+    "auth": -30,
+    "ip": 0.0,
+    "content": -10,
+    "llm": 0
+  },
+  "scan_time": 3.67,
+  "threat_summary": "The overall threat level is GREEN, with the main risk indicators being a low average IP threat score and successful authentication checks (DKIM and SPF).",
+  "from": "LinkedIn <jobs-noreply@linkedin.com>",
+  "to": "Addison Nicholson <mraddison.nicholson@gmail.com>",
+  "subject": "New jobs similar to Specialist - Cyber Security at Deloitte",
+  "date": "Wed, 09 Jul 2025 19:22:54 +0000"
+}

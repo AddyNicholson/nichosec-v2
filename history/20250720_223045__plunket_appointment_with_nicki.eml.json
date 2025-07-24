@@ -1,0 +1,30 @@
+{
+  "level": "GREEN",
+  "summary": "No signs of phishing or malicious activity (GREEN, score=0.0)",
+  "reasons": [
+    "The email is from a recognized organization (Plunket) and uses a valid domain (plunket.org.nz).",
+    "The DKIM and SPF checks have passed, indicating that the email is likely from the claimed sender.",
+    "The content of the email is consistent with a typical appointment reminder, including specific details about the appointment.",
+    "The email includes contact information for rescheduling, which is typical for legitimate appointment notifications.",
+    "The links provided in the email are to known social media platforms and the official website of Plunket.",
+    "Mail relayed via high-risk IP (fraud ≥ 70)",
+    "Scanned 2 IP(s); avg threat score: 30.0",
+    "2 IP(s) marked as MODERATE risk"
+  ],
+  "ips": [
+    "198.2.186.12",
+    "20.193.61.167"
+  ],
+  "components": {
+    "auth": -30,
+    "ip": 0.0,
+    "content": 0,
+    "llm": 0
+  },
+  "scan_time": 2.29,
+  "threat_summary": "The overall threat level is GREEN, with main risk indicators being a low average IP threat score and successful DKIM and SPF checks, confirming the email's legitimacy from a recognized organization.",
+  "from": "Whānau Āwhina Plunket <noreply@plunket.org.nz>",
+  "to": "mraddison.nicholson@gmail.com",
+  "subject": "Plunket Appointment with Nicki",
+  "date": "Wed, 16 Jul 2025 00:16:43 +0000"
+}

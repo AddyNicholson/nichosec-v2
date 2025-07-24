@@ -1,0 +1,31 @@
+{
+  "level": "RED",
+  "summary": "Significant phishing or malicious indicators detected (RED, score=50.0)",
+  "reasons": [
+    "The sender's email address is suspicious and uses a random string (L4W1s9qgg5wozkl8v4@collect-parallel.info) which does not appear to be associated with a legitimate organization.",
+    "The subject line contains explicit content and is designed to attract attention, which is a common tactic in phishing emails.",
+    "The email contains multiple links to external sites, specifically to a Google Cloud Storage URL, which could be used to host malicious content.",
+    "The content of the email is poorly formatted and contains numerous grammatical errors, which is typical of phishing attempts.",
+    "The use of emojis and sensational language ('WATCH MY VlDEO !!', 'LET'S MEET & HAVE FUN') is indicative of spam or phishing.",
+    "The email includes an unsubscribe link that is suspicious and may not lead to a legitimate unsubscribe process.",
+    "The overall design and layout of the email are unprofessional, which is a common characteristic of phishing emails.",
+    "Mail relayed via high-risk IP (fraud ≥ 70)",
+    "Scanned 1 IP(s); avg threat score: 75.0",
+    "1 IP(s) marked as HIGH risk"
+  ],
+  "ips": [
+    "15.235.72.77"
+  ],
+  "components": {
+    "auth": 0,
+    "ip": 0.0,
+    "content": 0,
+    "llm": 50
+  },
+  "scan_time": 4.89,
+  "threat_summary": "The overall threat level is RED, primarily indicated by a high IP threat score of 75.0, a suspicious sender email address, an attention-grabbing subject line, and multiple links to potentially malicious external sites.",
+  "from": "💘FUCKME💘 <info@8PU74OURiVlQXLixtU.com>",
+  "to": "mraddison.nicholson@gmail.com",
+  "subject": "🔥🔞🔥Better Sex with This...🍆Watch This F.R.E.E VIDEO ID:23518......140",
+  "date": "Tue, 22 Jul 2025 12:12:05 -0400"
+}

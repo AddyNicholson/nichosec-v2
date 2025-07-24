@@ -1,0 +1,28 @@
+{
+  "level": "GREEN",
+  "summary": "No signs of phishing or malicious activity (GREEN, score=0.0)",
+  "reasons": [
+    "The email contains multiple links that redirect to a domain that may not be directly associated with the company (my.zip.co).",
+    "The presence of a large number of encoded links suggests potential obfuscation, which is common in phishing attempts.",
+    "The email uses a generic greeting ('Hi Addison') instead of a more personalized approach, which can be a red flag.",
+    "The formatting of the email includes excessive whitespace and unusual characters, which can indicate a poorly constructed phishing email.",
+    "Mail relayed via high-risk IP (fraud ≥ 70)",
+    "Scanned 1 IP(s); avg threat score: 30.0",
+    "1 IP(s) marked as MODERATE risk"
+  ],
+  "ips": [
+    "167.89.95.108"
+  ],
+  "components": {
+    "auth": -30,
+    "ip": 0.0,
+    "content": 0,
+    "llm": 20
+  },
+  "scan_time": 3.36,
+  "threat_summary": "The overall threat level is GREEN, with main risk indicators including multiple obfuscated links to an unverified domain and a generic greeting, suggesting potential phishing attempts.",
+  "from": "Zip <account@my.zip.co>",
+  "to": "mraddison.nicholson@gmail.com",
+  "subject": "Addison, your Zip purchase was successful",
+  "date": "Sun, 06 Jul 2025 03:51:57 +0000"
+}

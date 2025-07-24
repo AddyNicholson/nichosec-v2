@@ -1,0 +1,29 @@
+{
+  "level": "GREEN",
+  "summary": "No signs of phishing or malicious activity (GREEN, score=10.0)",
+  "reasons": [
+    "Matched '\\bunsubscribe\\b' (+-1)",
+    "The email contains a link to 'tenemarkets.com', which is not associated with the sender's domain and appears suspicious.",
+    "The message includes unusual and poorly constructed language, suggesting it may not be from a legitimate source.",
+    "The email claims to provide account credits without prior context or verification, which is a common tactic in phishing attempts.",
+    "The sender's email address does not match the domain of the purported organization, raising further suspicion.",
+    "Mail relayed via high-risk IP (fraud ≥ 70)",
+    "Scanned 1 IP(s); avg threat score: 38.0",
+    "1 IP(s) marked as MODERATE risk"
+  ],
+  "ips": [
+    "204.194.223.166"
+  ],
+  "components": {
+    "auth": -30,
+    "ip": 0.0,
+    "content": -10,
+    "llm": 50
+  },
+  "scan_time": 3.05,
+  "threat_summary": "The overall threat level is GREEN, with main risk indicators being the suspicious link to 'tenemarkets.com' and poorly constructed language suggesting potential illegitimacy.",
+  "from": "Jean Stookey <jean.stookey@teresanto.com>",
+  "to": "2432166818 <mraddison.nicholson@gmail.com>",
+  "subject": "Account Credit Approval",
+  "date": "Thu, 10 Jul 2025 00:05:38 +0000"
+}

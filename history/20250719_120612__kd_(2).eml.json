@@ -1,0 +1,32 @@
+{
+  "level": "GREEN",
+  "summary": "No signs of phishing or malicious activity (GREEN, score=10.0)",
+  "reasons": [
+    "Matched '\\bunsubscribe\\b' (+-1)",
+    "The visible link points to a suspicious domain (linodeobjects.com) which is not associated with a legitimate organization.",
+    "The sender's email address (adelkherfi86@gmail.com) does not match the purported sender's name (Your payment is ready) and appears to be a personal email rather than a corporate one.",
+    "The subject line 'KD' is vague and does not provide any context, which is common in phishing attempts.",
+    "The email contains a call to action ('OPEN Now') that encourages the recipient to click on the link, a common tactic used in phishing.",
+    "The email includes a payment confirmation block that is designed to create a sense of urgency and legitimacy, which is a common phishing tactic.",
+    "The use of multiple images and HTML formatting is often used to make phishing emails appear more legitimate.",
+    "Mail relayed via high-risk IP (fraud ≥ 70)",
+    "Scanned 2 IP(s); avg threat score: 15.0",
+    "1 IP(s) marked as MODERATE risk"
+  ],
+  "ips": [
+    "172.234.148.9",
+    "209.85.220.41"
+  ],
+  "components": {
+    "auth": -30,
+    "ip": 0.0,
+    "content": -10,
+    "llm": 50
+  },
+  "scan_time": 3.61,
+  "threat_summary": "The overall threat level is GREEN, with main risk indicators including a suspicious domain link and a mismatched sender email address suggesting potential phishing.",
+  "from": "Your payment is ready <adelkherfi86@gmail.com>",
+  "to": "\"mraddison.nicholson@gmail.com\" <mraddison.nicholson@gmail.com>",
+  "subject": "KD",
+  "date": "Sun, 06 Jul 2025 10:35:58 +0000"
+}

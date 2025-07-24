@@ -1,0 +1,33 @@
+{
+  "level": "RED",
+  "summary": "Significant phishing or malicious indicators detected (RED, score=60.0)",
+  "reasons": [
+    "Matched '\\burgent\\b' (+1)",
+    "Matched '\\bclick here\\b' (+1)",
+    "Matched '\\bunsubscribe\\b' (+-1)",
+    "The subject line promises a large sum of money ($30,000 NZD) which is a common tactic used in phishing scams.",
+    "The email contains multiple links that redirect to a suspicious URL structure, which is often used to disguise malicious sites.",
+    "The sender's email address appears to be spoofed, using a domain that does not match the content of the email.",
+    "The email uses urgent language, pressuring the recipient to act quickly, which is a common tactic in phishing attempts.",
+    "The email contains a warning about account expiration, which is a tactic used to create fear and prompt hasty actions.",
+    "The overall design and language of the email resemble typical phishing attempts, including excessive use of bold text and emojis to grab attention.",
+    "Mail relayed via high-risk IP (fraud ≥ 70)",
+    "Scanned 1 IP(s); avg threat score: 75.0",
+    "1 IP(s) marked as HIGH risk"
+  ],
+  "ips": [
+    "15.235.72.79"
+  ],
+  "components": {
+    "auth": 0,
+    "ip": 0.0,
+    "content": 10,
+    "llm": 50
+  },
+  "scan_time": 2.71,
+  "threat_summary": "The overall threat level is RED, primarily indicated by a high average IP threat score of 75.0 and the presence of suspicious phrases such as \"urgent\" and \"click here.\"",
+  "from": "\"Mraddison.nicholson\" <info@TmRvssaqxSBxMaJVaEfSCyZwkF.org>",
+  "to": "mraddison.nicholson@gmail.com",
+  "subject": "Instant Payout: $30,000 NZD Ready – Confirm Now or Your Account Expires in 24 Hours ",
+  "date": "Mon, 14 Jul 2025 16:31:06 -0700"
+}

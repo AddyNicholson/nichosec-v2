@@ -1,0 +1,81 @@
+{
+  "level": "RED",
+  "summary": "Significant phishing or malicious indicators detected (RED, score=50.0)",
+  "reasons": [
+    "The sender's email address is suspicious and uses a random string (L4W1s9qgg5wozkl8v4@collect-parallel.info) which does not appear to be associated with a legitimate organization.",
+    "The subject line contains explicit content and is designed to attract attention, which is a common tactic in phishing emails.",
+    "The email contains multiple links that redirect to a storage.googleapis.com URL, which is often used to host malicious content.",
+    "The content of the email is poorly formatted and contains numerous grammatical errors, which is typical of phishing attempts.",
+    "The use of emojis and sensational language ('WATCH MY VlDEO !!') is a tactic to entice the recipient to click on links.",
+    "The email includes an unsubscribe option, which is often a tactic used in spam and phishing emails to appear legitimate.",
+    "Mail relayed via high-risk IP (fraud ≥ 70)",
+    "Scanned 1 IP(s); avg threat score: 75.0",
+    "1 IP(s) marked as HIGH risk"
+  ],
+  "ips": [
+    "15.235.72.77"
+  ],
+  "components": {
+    "auth": 0,
+    "ip": 0.0,
+    "content": 0,
+    "llm": 50,
+    "hashes": {
+      "md5": "4ef598859e93834f19f5adad3c3d5824",
+      "sha1": "b806fe0027dd35f0a3639d0df2d7f79d07c3d880",
+      "sha256": "0f53cfeba2c76922bb5e885edc3121e3d3965bcdb3e4b4e83728c0b35fa40b52"
+    },
+    "vt": {
+      "malicious": 0,
+      "suspicious": 0,
+      "undetected": 0,
+      "reputation": 0,
+      "permalink": ""
+    },
+    "sandbox": {
+      "score": 0,
+      "verdict": "Unknown",
+      "submitted_url": "N/A",
+      "environment": "N/A"
+    }
+  },
+  "scan_time": 9.18,
+  "threat_summary": "The overall threat level is RED, primarily indicated by a high IP threat score of 75.0, a suspicious sender email address, an attention-grabbing subject line, and multiple links redirecting to a potentially malicious URL.",
+  "ip_scores": {
+    "15.235.72.77": 75
+  },
+  "ip_threats": {
+    "15.235.72.77": {
+      "avg": 75,
+      "high": 1,
+      "medium": 0,
+      "count": 1,
+      "ip": "15.235.72.77",
+      "fraud_score": 75,
+      "adjusted_score": 75,
+      "summary": "Suspicious",
+      "ai_insight": "The IP address 15.235.72.77, associated with OVHcloud in CA, has an adjusted risk score of 75. It is classified as **Suspicious**. It was also flagged for: VPN, Proxy.",
+      "is_vpn": true,
+      "is_tor": false,
+      "is_proxy": true,
+      "is_crawler": false,
+      "recent_abuse": false,
+      "abuse_velocity": "Premium required.",
+      "country": "CA",
+      "ISP": "OVHcloud",
+      "suspicious_context": false,
+      "flag_reason": ""
+    }
+  },
+  "mitre_techniques": [
+    {
+      "id": "T1105",
+      "tactic": "Command and Control",
+      "technique": "Ingress Tool Transfer"
+    }
+  ],
+  "from": "💘FUCKME💘 <info@8PU74OURiVlQXLixtU.com>",
+  "to": "mraddison.nicholson@gmail.com",
+  "subject": "🔥🔞🔥Better Sex with This...🍆Watch This F.R.E.E VIDEO ID:23518......140",
+  "date": "Tue, 22 Jul 2025 12:12:05 -0400"
+}

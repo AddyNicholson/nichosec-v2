@@ -7,3 +7,4 @@ PyMuPDF
 beautifulsoup4
 python-docx
 pandas
+streamlit>=1.25

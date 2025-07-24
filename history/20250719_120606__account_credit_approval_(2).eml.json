@@ -1,0 +1,30 @@
+{
+  "level": "GREEN",
+  "summary": "No signs of phishing or malicious activity (GREEN, score=10.0)",
+  "reasons": [
+    "Matched '\\bunsubscribe\\b' (+-1)",
+    "The visible link redirects to 'tenemarkets.com', which is not associated with the sender's domain (teresanto.com).",
+    "The email contains poor grammar and unusual language, which is often a sign of phishing attempts.",
+    "The subject line 'Account Credit Approval' is a common tactic used in phishing emails to entice users to click on links.",
+    "The email requests the recipient to follow a link for account credits, which is a typical phishing strategy.",
+    "The sender's email address does not match the domain of the company mentioned in the email, raising suspicion.",
+    "Mail relayed via high-risk IP (fraud ≥ 70)",
+    "Scanned 1 IP(s); avg threat score: 38.0",
+    "1 IP(s) marked as MODERATE risk"
+  ],
+  "ips": [
+    "204.194.223.166"
+  ],
+  "components": {
+    "auth": -30,
+    "ip": 0.0,
+    "content": -10,
+    "llm": 50
+  },
+  "scan_time": 3.92,
+  "threat_summary": "The overall threat level is GREEN, but the main risk indicators include a suspicious redirect to an unrelated domain and poor grammar, suggesting potential phishing attempts.",
+  "from": "Jean Stookey <jean.stookey@teresanto.com>",
+  "to": "2432166818 <mraddison.nicholson@gmail.com>",
+  "subject": "Account Credit Approval",
+  "date": "Thu, 10 Jul 2025 00:05:38 +0000"
+}

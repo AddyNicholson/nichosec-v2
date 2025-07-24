@@ -1,68 +1,54 @@
-# src/ui/dashboard.py
-from __future__ import annotations
-import sys
-from pathlib import Path
+# ── dashboard.py (Advanced Threat Dashboard) ───────────────────────────── 
 import streamlit as st
 import pandas as pd
+import matplotlib.pyplot as plt
 
-# --- add project root so we can import src.core -------------------------
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
-if str(PROJECT_ROOT) not in sys.path:
-    sys.path.insert(0, str(PROJECT_ROOT))
+st.title("🧠 NichoSec – Dashboard")
 
-from src.core.reports import load_history   # helper you’ll write
-from src.core.scan_engine import scan       # reuse if you add re-scan
+history = st.session_state.get("scan_history", [])
 
-st.set_page_config(page_title="NichoSec Dashboard", page_icon="🛡️", layout="wide")
-st.title("🛡️ NichoSec – Scan Dashboard")
-
-# ── Sidebar upload (optional) -------------------------------------------
-st.sidebar.header("New Upload")
-uploaded = st.sidebar.file_uploader(
-    "Upload document",
-    type=["pdf","txt","log","docx","csv","xlsx","xls","html","htm","eml"]
-)
-if uploaded:
-    # call your existing extract_text+scan pipeline
-    from src.core.extractors import extract_text
-    text = extract_text(uploaded)
-    result = scan(text)
-    # save to history (JSON/SQLite/whatever)
-    from src.core.reports import save_result
-    save_result(uploaded.name, result)
-    st.sidebar.success("Scanned and saved!")
-
-# ── Pull scan history ----------------------------------------------------
-history = load_history()              # returns a list[dict] or DataFrame
-if history.empty:
-    st.info("No scans yet. Upload a document to get started!")
+if not history:
+    st.info("No scan history found. Run a scan to populate the dashboard.")
     st.stop()
 
-# Overview stats
+df = pd.DataFrame(history)
+df["timestamp"] = pd.to_datetime(df["timestamp"])
+df["date"] = df["timestamp"].dt.date
+
+st.markdown("### 📊 Threat Breakdown")
 col1, col2, col3 = st.columns(3)
-with col1:
-    st.metric("🔴 Red",     int((history.level=="RED").sum()))
-with col2:
-    st.metric("🟡 Yellow",  int((history.level=="YELLOW").sum()))
-with col3:
-    st.metric("🟢 Green",   int((history.level=="GREEN").sum()))
+col1.metric("🟥 Red", df[df["level"] == "RED"].shape[0])
+col2.metric("🟨 Yellow", df[df["level"] == "YELLOW"].shape[0])
+col3.metric("🟩 Green", df[df["level"] == "GREEN"].shape[0])
 
-st.divider()
+# Plot scans per day
+st.markdown("### 📅 Scan Volume Over Time")
+scans_per_day = df.groupby("date").size()
+fig, ax = plt.subplots()
+scans_per_day.plot(kind="line", marker="o", ax=ax)
+ax.set_ylabel("Scans")
+ax.set_xlabel("Date")
+ax.set_title("Scans per Day")
+st.pyplot(fig)
 
-# Recent scans table
-st.subheader("Recent Scans")
-st.dataframe(
-    history[["timestamp","filename","level","scan_time","summary"]],
-    use_container_width=True,
-    hide_index=True
-)
+# Table view with filters
+st.markdown("### 🗂️ Recent Scan Records")
+verdict_filter = st.selectbox("Filter by Verdict", ["All", "RED", "YELLOW", "GREEN"])
+if verdict_filter != "All":
+    df = df[df["level"] == verdict_filter]
 
-# Show details when user selects a row
-idx = st.selectbox("View full report (row #):", history.index[::-1])
-row = history.loc[idx]
-st.markdown(f"### {row.filename}  <span style='color:{row.level}'>{row.level}</span>", unsafe_allow_html=True)
-st.write("**Summary:**", row.summary)
-st.write("**Reasons:**")
-for r in row.reasons:
-    st.write("•", r)
-st.write("**IPs:**", ", ".join(row.ips) if row.ips else "—")
+st.dataframe(df[["timestamp", "file", "level", "summary"]].sort_values(by="timestamp", ascending=False), use_container_width=True)
+
+# Detail Viewer
+st.markdown("### 🔍 View Full Report")
+selected_index = st.number_input("Select row #", min_value=0, max_value=len(df)-1, step=1)
+selected = df.iloc[selected_index]
+st.markdown(f"**{selected['file']}** – **{selected['level']}**")
+st.markdown(f"**Summary:** {selected['summary']}")
+st.markdown("**Reasons:**")
+for r in selected.get("reasons", []):
+    st.write(f"- {r}")
+
+if st.button("📥 Export History to CSV"):
+    csv = df.to_csv(index=False).encode("utf-8")
+    st.download_button("Download CSV", csv, "scan_history.csv", "text/csv")

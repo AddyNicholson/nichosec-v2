@@ -8,11 +8,12 @@ if str(PROJECT_ROOT) not in sys.path:                # avoid duplicates
 # ────────────────────────────────────────────────────────────────────────
 
 # ── standard / third-party libs ───────────────────────────────────────
-import os, json, re, base64, ipaddress, imaplib, email, tempfile, time
+import os, json, re, base64, ipaddress, imaplib, tempfile, time
 from io import BytesIO
 import urllib.parse as up
+import email as email_lib
 
-import fitz                     # PyMuPDF
+import fitz                     # PyMuPDF   
 import pandas as pd
 import requests
 from bs4 import BeautifulSoup
@@ -20,17 +21,65 @@ from docx import Document
 import streamlit as st
 from openai import APIError, RateLimitError
 from dotenv import load_dotenv   # ← add
-
+from zipfile import ZipFile
 load_dotenv()                    # ← pulls NICHOSEC_APP_KEY from .env
 
+# ── NEW: Safelist persistence + known-org mapping ─────────────────────
+
+from src.core.constants import SAFE_IPS as DEFAULT_SAFE_IPS
+
+SAFE_IPS_FILE = "safe_ips.json"
+
+def load_safe_ips():
+    try:
+        with open(SAFE_IPS_FILE) as f:
+            return set(json.load(f))
+    except FileNotFoundError:
+        return set()
+
+def save_safe_ips(safe_set):
+    with open(SAFE_IPS_FILE, "w") as f:
+        json.dump(list(safe_set), f)
+
+# Start with your on-disk list, then union in the shipped defaults
+SAFE_IPS = load_safe_ips()
+
+# Your known-org mapping lives here too
+ORG_IPS = {
+    "203.36.205.14": "Fulton Hogan",
+    # …add more here
+}
 # ── project modules ───────────────────────────────────────────────────
 
-from src.core.prompting   import NCHOSEC_SYSTEM_PROMPT
+from src.core.prompting     import NCHOSEC_SYSTEM_PROMPT
 from src.core.openai_client import client
 from src.core.scan_engine   import scan
 from src.core.extractors    import extract_text
 from src.core.reports       import make_pdf
-  
+from src.core.threat_intel  import lookup_ip_threat, get_ip_location
+from src.core.utils         import abuseip_lookup, ai_threat_summary
+from src.core.thresholds    import THREAT_THRESHOLDS
+from src.core.utils         import smarten_ip_verdict
+from src.core.reports       import save_result
+from urllib.parse import urlencode
+from login import login, logout
+from src.core.lookup_ip_threat import lookup_ip_threat
+from src.core import gmail_loader 
+from src.core.threat_intel import (
+    lookup_ip_threat,
+    virustotal_lookup,
+    upload_to_hybrid,
+    get_hybrid_report,
+    get_ip_location
+)
+
+
+if not st.session_state.get("user"):
+    login()
+else:
+    st.sidebar.markdown(f"**{st.session_state.user}** ({st.session_state.role})")
+    if st.sidebar.button("Log out"):
+        logout()
 
 
 # ── UTILITIES ─────────────────────────────────────────────────────────────
@@ -38,8 +87,10 @@ from src.core.reports       import make_pdf
 def to_base64(path: str) -> str:
     """Return base‑64 of a local file or empty string if not found."""
     p = Path(path)
+    
     return base64.b64encode(p.read_bytes()).decode() if p.exists() else ""
 
+bg_b64 = to_base64("assets/circuit_dark_bg.png")
 
 def parse_json(s: str) -> dict:            # safe‑parse GPT output
     s = s.strip()
@@ -54,7 +105,6 @@ def parse_json(s: str) -> dict:            # safe‑parse GPT output
             "reasons": ["Fallback parse"],
         }
 
-
 # ── NETWORK HELPERS ───────────────────────────────────────────────────────
 
 @st.cache_data(ttl=3600)  # ← cache for 1 hour
@@ -65,73 +115,30 @@ def lookup_ip(ip: str, timeout: int = 6) -> dict:
     except Exception:
         return {}
 
+@st.cache_data(ttl=3600)
+def abuseip_lookup(ip: str) -> dict:
+    headers = {
+        "Key": os.getenv("ABUSEIPDB_KEY"),
+        "Accept": "application/json"
+    }
+    url = f"https://api.abuseipdb.com/api/v2/check?ipAddress={ip}&maxAgeInDays=90"
+    try:
+        resp = requests.get(url, headers=headers, timeout=6)
+        return resp.json().get("data", {}) if resp.status_code == 200 else {}
+    except Exception as e:
+        return {"error": str(e)}
+
 
 # ── UI CONFIG ─────────────────────────────────────────────────────────────
 st.set_page_config(page_title="NichoSec | Local Threat Scanner",
-                   page_icon="assets/shield_logo_exact.png", layout="centered")
+                   page_icon="assets/shield_pulse_dark.png", layout="centered")
 
 # ── AUTHENTICATION + ROLES ─────────────────────────────────────────────
 from dotenv import load_dotenv
 load_dotenv()                                          # .env → env vars
 
-################################################################################
-# 1)  Credentials + roles
-#     Either hard-code here *or* keep only the keys and read the passwords
-#     from environment variables so nothing sensitive sits in git.
-################################################################################
-USERS = {
-    #  user      : (password                      , role )
-    "addy"      : (os.getenv("PWD_addy")   or "EmeelaNich022025", "admin"),
-    "tester"    : (os.getenv("PWD_tester") or "Test123",          "user"),
-    # add more…
-}
-
-def authenticate(u: str, p: str):
-    """Return the user’s role if credentials match, else None."""
-    creds = USERS.get(u.lower().strip())
-    if creds and p == creds[0]:
-        return creds[1]              # e.g. "admin"
-    return None
-
-################################################################################
-# 2)  Persist auth info in Session State
-################################################################################
-st.session_state.setdefault("auth" , False)
-st.session_state.setdefault("user" , None)
-st.session_state.setdefault("role" , None)
-
-if not st.session_state.auth:
-    st.title("🔐 NichoSec Login")
-
-    c1, c2 = st.columns(2)
-    u = c1.text_input("Username")
-    p = c2.text_input("Password", type="password")
-
-    if st.button("Unlock"):
-        role = authenticate(u, p)
-        if role:                                   # ✔ valid
-            st.session_state.update(
-                {"auth": True, "user": u, "role": role}
-            )
-            st.rerun()
-        else:                                      # ✘ invalid
-            st.error("❌ Invalid credentials")
-            st.stop()
-    else:
-        st.stop()
-
-################################################################################
-# 3)  Sidebar badge + Logout
-################################################################################
-with st.sidebar:
-    st.markdown(f"👤 **{st.session_state.user}**  ({st.session_state.role})")
-    if st.button("🔓 Log out"):
-        for k in ("auth", "user", "role"):
-            st.session_state.pop(k, None)
-        st.rerun()
-
 # ── SIDEBAR NAVIGATION + BACKGROUND IMAGE ────────────────────────────────
-st.sidebar.title("🛡️ NichoSec")
+st.sidebar.title(" NichoSec")
 page = st.sidebar.radio("Navigate", ["Scan", "Dashboard"])
 
 # right above bg_b64
@@ -162,118 +169,75 @@ st.markdown(
     """,
     unsafe_allow_html=True,
 )
-# ── 3️⃣  Email Loader sidebar (beta) ──────────────────────────────────────
-def list_emails(host, user, pw, num=20):
-    box = imaplib.IMAP4_SSL(host)
-    box.login(user, pw); box.select("INBOX")
-    _, data = box.search(None, "ALL")
-    uids = data[0].split()[-num:]
-    rows = []
-    for uid in reversed(uids):
-        _, msg_data = box.fetch(uid, "(RFC822.HEADER)")
-        msg = email.message_from_bytes(msg_data[0][1])
-        rows.append((uid, msg["Subject"], msg["From"], msg["Date"]))
-    box.logout()
-    return rows
 
-def fetch_email(host, user, pw, uid):
-    box = imaplib.IMAP4_SSL(host)
-    box.login(user, pw); box.select("INBOX")
-    _, msg_data = box.fetch(uid, "(RFC822)")
-    box.logout()
-    return email.message_from_bytes(msg_data[0][1])
 
-with st.sidebar.expander("📥  Email Loader (beta)"):
-    st.info(
-        "📥 **Email Loader is in beta** – Currently supports Gmail only via IMAP and App Passwords. "
-        "You'll need to enable IMAP in your Gmail settings and [generate an App Password]"
-        "(https://support.google.com/accounts/answer/185833). "
-        "We're exploring simpler, more secure login options like OAuth in future versions.",
-        icon="ℹ️"
-    )
+ # GMAIL LOADER
 
-    host = st.text_input("IMAP host", "imap.gmail.com")
-    user = st.text_input("Email address")
-    pw   = st.text_input("Password / App-PW", type="password")
+with st.sidebar.expander("📧 Gmail Loader", expanded=False):
+    st.info("Securely scan emails from your Gmail inbox.")
 
-    if st.button("Connect"):
+    if st.button("🔐 Connect Gmail"):
         try:
-            st.session_state.email_list = list_emails(host, user, pw)
-            st.session_state.imap_creds = (host, user, pw)
-            st.success(f"Fetched {len(st.session_state.email_list)} messages")
+            st.session_state.gmail_msgs = gmail_loader.get_recent_emails(10)
+            st.success(f"{len(st.session_state.gmail_msgs)} messages loaded.")
         except Exception as e:
-            st.error(f"IMAP error: {e}")
+            st.error(f"Gmail load failed: {e}")
 
-    if "email_list" in st.session_state:
-        for uid, subj, sender, date in st.session_state.email_list:
-            if st.button(f"🛡️ Scan: {subj[:60]}", key=uid):
-                host, user, pw = st.session_state.imap_creds
-                msg = fetch_email(host, user, pw, uid)
+    if "gmail_msgs" in st.session_state:
+        for msg_id, subject in st.session_state.gmail_msgs:
+            if st.button(f"Scan: {subject[:40]}...", key=f"gmail-scan-{msg_id}"):
+                raw = gmail_loader.fetch_email_raw(msg_id)
+                result = scan(raw)
+                st.session_state.threat = result
+                st.success("Scan complete. See main panel.")
 
-                # --- extract plain text + attachments ---------------------
-                raw_text, attachments = "", []
-                for part in msg.walk():
-                    ctype = part.get_content_type()
-                    if ctype == "text/plain":
-                        raw_text += part.get_payload(decode=True).decode(errors="ignore")
-                    elif part.get_filename():
-                        tmp = tempfile.NamedTemporaryFile(delete=False)
-                        tmp.write(part.get_payload(decode=True)); tmp.close()
-                        attachments.append(tmp.name)
 
-                # --- call your existing scan() routine --------------------
-                data = scan(raw_text, purge=False)     # keep purge toggle
-                st.write(data)                         # replace with pretty UI
-                # You can loop over attachments and call scan_file(...) here
+# ────────────────────────────────────────────────────────────────────────────────
 
-# ░░  SIDEBAR – AI helper  ░░───────────────────────────────────────────────
-with st.sidebar.expander("🤖  Ask NichoSec AI", expanded=False):
-
-    # 0️⃣  Reset input box if last run asked for it
+with st.sidebar.expander("💬  Ask NichoSec AI", expanded=False):
+    # Step 0: Clear input box after response if flagged
     if st.session_state.pop("_reset_box", False):
         st.session_state.pop("chat_box", None)
 
-    # 1️⃣  Initialise chat history (only once)
+    # Step 1: Initialize chat history
     if "chat" not in st.session_state:
         st.session_state.chat = [
-            {"role": "system",    "content": NCHOSEC_SYSTEM_PROMPT},
+            {"role": "system", "content": NCHOSEC_SYSTEM_PROMPT},
             {"role": "assistant", "content":
-                "Hello! I'm here to help with any email- or file-threat analysis. "
-                "Paste a suspicious email, file or IP and I’ll assess the risk."},
+                "Welcome to NichoSec AI. I'm here to assist with threat analysis for emails, files, and IPs."},
         ]
 
-    # 2️⃣  Model picker
+    # Step 2: Model selector
     model_name = st.radio(
-        "Model", ["gpt-3.5-turbo", "gpt-4o-mini"],
+        "Select AI Model:",
+        ["gpt-3.5-turbo", "gpt-4o-mini"],
         index=1, horizontal=True,
-        format_func=lambda m: "GPT-3.5" if m.startswith("gpt-3.5") else "GPT-4o-mini",
+        format_func=lambda m: "GPT-3.5" if m.startswith("gpt-3.5") else "GPT-4o Mini",
     )
 
-    # 3️⃣  Clear-chat button
-    if st.button("🗑️  Clear chat"):
+    # Step 3: Clear chat history
+    if st.button("Reset Conversation"):
         st.session_state.pop("chat", None)
         st.rerun()
 
-    # 4️⃣  Show history (skip system message)
+    # Step 4: Display message history (excluding system prompt)
     for msg in st.session_state.chat:
-        if msg["role"] == "system":
-            continue
-        icon = "🧑‍💻" if msg["role"] == "user" else "🤖"
-        st.markdown(f"**{icon}** {msg['content']}")
+        if msg["role"] != "system":
+            st.markdown(msg["content"])
 
-    # 5️⃣  Prompt box
+    # Step 5: User input prompt
     prompt = st.text_input(
-        "Ask NichoSec AI:",
+        "Ask a Security Question:",
         key="chat_box",
-        placeholder="Your security question…",
+        placeholder="e.g., Does this email look suspicious?",
     )
 
-    # 6️⃣  Send button ─ all code below **must** stay indented!
+    # Step 6: Submit and process response
     if st.button("Send", key="chat_send") and prompt.strip():
-        # 6-a  Append user turn
+        # Append user input
         st.session_state.chat.append({"role": "user", "content": prompt})
 
-        # 6-b  MEMORY MODE → keep first system turn + last ≤10 non-system turns
+        # Limit memory for efficiency
         trimmed_history = [st.session_state.chat[0]] + st.session_state.chat[-10:]
 
         try:
@@ -285,174 +249,365 @@ with st.sidebar.expander("🤖  Ask NichoSec AI", expanded=False):
             )
 
             placeholder, assistant_reply = st.empty(), ""
-            with st.spinner("NichoSec is thinking…"):
+            with st.spinner("Analyzing..."):
                 for chunk in resp:
                     assistant_reply += chunk.choices[0].delta.content or ""
-                    placeholder.markdown(f"**🤖** {assistant_reply}")
+                    placeholder.markdown(assistant_reply)
 
-            # 6-c  Store reply, trim master history the same way
-            st.session_state.chat.append(
-                {"role": "assistant", "content": assistant_reply}
-            )
+            # Store assistant reply
+            st.session_state.chat.append({"role": "assistant", "content": assistant_reply})
             st.session_state.chat = [st.session_state.chat[0]] + st.session_state.chat[-10:]
-
-            # Tell next run to clear the textbox
             st.session_state._reset_box = True
 
         except (RateLimitError, APIError) as e:
-            st.error(f"OpenAI error – {e.__class__.__name__}: {e}")
-# ── SCAN PAGE (wrap everything) ────────────────────────────────────────
+            st.error(f"OpenAI API Error: {e.__class__.__name__}: {e}")
+
 def show_scan_ui():
-    st.write("🟢 scan ui fired")
-    
-    # ── HEADER ----------------------------------------------------------------
-    logo_b64 = to_base64("assets/shield_logo_exact.png")
-    st.markdown(
-        f"""
-        <div class="nichosec-header">
-          <img src="data:image/png;base64,{logo_b64}" width="64" />
-          <h1>NichoSec V1 - Local Threat Scanner</h1>
+      
+        # ── HEADER ─────────────────────────────────────────────────────
+    logo_b64 = to_base64("assets/shield_pulse_dark.png")
+    st.markdown(f"""
+        <div style="background:rgba(255,255,255,0.05); padding:1rem; border-radius:8px; margin-bottom:1.5rem;">
+            <div class="nichosec-header" style="text-align:center;">
+                <img src="data:image/png;base64,{logo_b64}" width="250" style="margin-bottom:0.5rem;" />
+                <h2 style="margin:0; color:#fff;">NichoSec V2 – AI Security Tool</h2>
+                <p style="font-size:0.9rem; color:#ccc; margin-top:0.25rem;">
+                    Local analysis. Private results. No cloud storage.
+                </p>
+            </div>
         </div>
-        """,
-        unsafe_allow_html=True
-    )
+    """, unsafe_allow_html=True)
+
+
+    # ── IP THREAT INTELLIGENCE LOOKUP ───────────────────────────────
+    with st.expander("IP Threat Intelligence Lookup", expanded=False):
+        ip_input = st.text_input("Enter an IP address to check:", placeholder="e.g. 185.220.101.1")
+        if st.button("Lookup IP") and ip_input:
+            st.session_state.ip_result = lookup_ip_threat(ip_input)
+            st.session_state.ip_geo    = get_ip_location(ip_input)
+
+        if "ip_result" in st.session_state:
+            result = st.session_state.ip_result
+            geo    = st.session_state.ip_geo
+            if "error" in result:
+                st.error(result["error"])
+            else:
+                verdict, score = smarten_ip_verdict(result)
+                st.markdown(f"### `{result['ip']}` → **{verdict}**")
+                st.write(f"**Fraud Score:** `{score}`")
+                with st.expander("Raw IP Data"):
+                    st.json(result)
+
+
+                # ── location + map ────────────────────────────────
+                if geo.get("lat") and geo.get("lon"):
+                    show_map = st.checkbox("📍 Show on map", key="ip_map_toggle")
+                    if show_map:
+                        st.map(
+                            pd.DataFrame([{
+                                "lat": float(geo["lat"]),
+                                "lon": float(geo["lon"])
+                            }]),
+                            zoom=3, use_container_width=True
+                        )
+                        st.caption(f"ISP: {geo.get('asn') or geo.get('isp','')}")
+                else:
+                    # fallback text if we have city/country but no coords
+                    if geo.get("city") or geo.get("country"):
+                        st.write(f"**Location:** {geo.get('city','')} {geo.get('country','')}")
+                    else:
+                        st.caption("📍 No geo-location available for this IP.")
+
+                # ── AbuseIPDB threat enrichment ─────────────────────────────────────
+                abuse_data = abuseip_lookup(result['ip'])
+
+                if abuse_data:
+                    abuse_score = abuse_data.get("abuseConfidenceScore", 0)
+                    categories = abuse_data.get("usageType", "") or "Unknown"
+
+                    st.markdown(f"🔎 **AbuseIPDB Score:** `{abuse_score}`")
+                    st.caption(f"🗂 Usage Type: {categories}")
+
+                    if abuse_score >=70:
+                        st.error("🚨 This IP is likely malicious.")
+                    elif abuse_score >= 40:
+                        st.warning("⚠️ Suspicious activity reported.")
+                    elif abuse_score:
+                        st.success("✅ No major abuse detected.")
+                    # 🔍 AI single-line threat summary
+                    summary = ai_threat_summary(result["ip"], abuse_data, geo)
+                    st.caption(f"🧠 AI Insight: {summary}")
+                else:
+                    st.caption("No data from AbuseIPDB.")
 
     # ░░ UPLOAD / PASTE CARD ░░
     with st.container():
         st.markdown("<div class='card'>", unsafe_allow_html=True)
+        scan_clicked = False  
 
         uploaded = st.file_uploader(
-            "Upload document",
+            "Upload documents (bulk supported)",
             type=["pdf","txt","log","docx","csv","xlsx","xls","html","htm","eml"],
             key="uploader",
+            accept_multiple_files=True
         )
+        
+        if uploaded:
+            # Option to clear uploads
+            if st.button("Clear uploaded files"):
+                st.rerun()  #  Correct rerun method
+            
+            # If only one file was uploaded, offer single scan mode
+            if len(uploaded) == 1:
+                single_file = uploaded[0]
+                st.success(f"Ready to scan: {single_file.name}")
+                # maybe let them hit “Run Scan” and download PDF after that
+            else:
+                st.info(f"{len(uploaded)} files ready for bulk scan.")
+            
+        text_in = st.text_area("…or paste raw email / text here", height=150)
+        scan_clicked = st.button("Run Scan", type="primary")
+        
+        st.markdown("</div>", unsafe_allow_html=True)
 
-        text_in  = st.text_area("…or paste raw email / text here", height=150)
-        purge_on = st.checkbox("🔌 Enable Purge Plugin (experimental)")
-
-        if purge_on:
-            st.caption(
-                "The purge plug-in removes lines containing sensitive keywords like "
-                "`seed phrase`, `wire transfer`, or `password` from the text before exporting."
-            )
-
-        # 👉 scan button lives inside the same <div class='card'>
-        scan_clicked = st.button("🛡️ Run Scan", type="primary")
-
-        st.markdown("</div>", unsafe_allow_html=True)   # ← close card here
-
-    # 🚦 handle click
+    # ── PHASE 1: Trigger the scan ─────────────────────────────────────────
     if scan_clicked:
         if not uploaded and not text_in.strip():
-            st.warning("Please upload a file or paste some text.")
+            st.warning("Please upload one or more files.")
         else:
-            with st.spinner("Scanning…"):
-                raw_text = extract_text(uploaded) if uploaded else text_in
-                st.session_state.threat = scan(raw_text, purge_on)
+            st.session_state.bulk_threats = []
+            st.session_state.bulk_reports = []
+            with st.spinner("Scanning all uploaded files…"):
+                for file in uploaded:
+                    name = file.name.lower()
+                    raw_input = file.read() if name.endswith(".eml") else extract_text(file)
+                    
+                    report = scan(raw_input)  # ✅ ACTUALLY RUN SCAN
+                    save_result(name, report)
+                    st.session_state.threat = report
 
-    # ── OUTPUT AREA ──────────────────────────────────────────────────
+                    pdf = make_pdf(report)
+                    st.session_state.bulk_threats.append((name, report))
+                    st.session_state.bulk_reports.append((f"{report['level']}_{name}.pdf", pdf))
+            st.success(f"Scanned {len(st.session_state.bulk_threats)} files.")
+    
+    if st.session_state.get("bulk_threats"):
+        st.write("### Bulk Scan Results")
+        for name, report in st.session_state.bulk_threats:
+            verdict = report.get("level", "YELLOW")
+            summary = report.get("summary", "No summary provided.")
+            color = {"GREEN":"#28a745","YELLOW":"#ffc107","RED":"#dc3545"}.get(verdict, "#6c757d")
+            st.markdown(f"""
+                <div style='border-left:6px solid {color}; padding:0.5rem 1rem; margin:0.75rem 0; background:rgba(255,255,255,0.06); border-radius:6px;'>
+                <b>{name}</b> → <span style='color:{color}; font-weight:600;'>{verdict}</span><br>
+                {summary}
+                </div>
+            """, unsafe_allow_html=True)
+
+        
+        zip_buffer = BytesIO()
+
+        with ZipFile(zip_buffer, "w") as zipf:
+            for fname, pdf_bytes in st.session_state.bulk_reports:
+                zipf.writestr(fname, pdf_bytes)
+
+        zip_data = zip_buffer.getvalue()
+
+        # Only show ZIP download if multiple reports
+        if len(st.session_state.bulk_reports) > 1:
+            st.download_button(
+                "⬇️ Download All Reports (ZIP)",
+                data=zip_data,
+                file_name="NichoSec_BulkReports.zip",
+                mime="application/zip"
+            )
+
+
+
+    # ── PHASE 2: Always show results + export if we've scanned once ──
     threat = st.session_state.get("threat")
-    if threat:
-        # ------- colour + icon by level ------------------------------
-        level = threat.get("level", "YELLOW").upper()
-        icon, color = {
-            "GREEN":  ("🟢", "#28a745"),
-            "YELLOW": ("🟡", "#ffc107"),
-            "RED":    ("🔴", "#dc3545"),
-        }.get(level, ("❔", "#6c757d"))
+    if not threat:
+        st.info("Run a scan first ⬆️")
+        return
+    # Basic unpack
+    level     = threat.get("level", "YELLOW").upper()
+    summary   = threat.get("summary", "No summary provided.")
+    reasons   = threat.get("reasons", [])
+    ips       = threat.get("ips", [])
+    ip_scores = threat.get("ip_scores", {})
+    t_sec     = threat.get("scan_time", 0.0)
 
-        summary = threat.get("summary", "No summary provided.")
-        reasons = threat.get("reasons", [])
-        ips     = threat.get("ips", [])
-        t_sec   = threat.get("scan_time", 0)
+    
+    # Record into history
+    history = st.session_state.get("history", [])
+    history.append({
+        "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
+        "file": uploaded[0].name if uploaded and len(uploaded) > 0 else "pasted-text",
+        "level":     level,
+        "summary":   summary,
+        "reasons":   " | ".join(reasons),
+        "ips":       " | ".join(ips),
+        "scan_time": t_sec,
+        "full_json": threat,
+    })
+    st.session_state.history = history
 
-        # ░░ RECORD SCAN IN SESSION HISTORY ░░
-        history = st.session_state.get("history", [])
-        history.append({
-            "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
-            "file": uploaded.name if uploaded else "pasted-text",
-            "level": level,
-            "summary": summary,
-            "reasons": " | ".join(reasons),
-            "ips": " | ".join(ips),
-            "scan_time": t_sec,
-            "full_json": threat,
-        })
-        st.session_state.history = history
+    risk_label, color = {
+        "GREEN":  ("Low Risk", "#28a745"),
+        "YELLOW": ("Moderate Risk", "#ffc107"),
+        "RED":    ("High Risk", "#dc3545"),
+    }.get(level, ("Unknown Risk", "#6c757d"))
 
-        # ------------ pretty result card -----------------------------
+    if threat:   
         st.markdown(f"""
-        <div style="
-            border-left: 6px solid {color};
-            padding: 0.75rem 1rem;
-            margin: 0.5rem 0 1rem 0;
-            background: rgba(255,255,255,0.08);
-            border-radius: 6px;">
+            <div style="
+                border-left: 6px solid {color};
+                padding: 0.75rem 1rem;
+                margin: 0.5rem 0 1rem;
+                background: rgba(255,255,255,0.08);
+                border-radius: 6px;">
             <h4 style="margin-top:0;">
-                {icon} <span style="color:{color};">{level}</span> – {summary}
+                <span style="color:{color};">{risk_label}</span> - {summary}
             </h4>
 
             <b>Reasons:</b>
-            <ul>{''.join(f'<li>{r}</li>' for r in reasons) or '<li>—</li>'}</ul>
-
-            <b>IPs:</b><br>
-            {('<br>'.join(
-                f'<a href="https://ipinfo.io/{ip}" target="_blank"><code>{ip}</code></a>'
-                for ip in ips) if ips else '—')}
-
+            <ul>{''.join(f'<li>{r}</li>' for r in threat['reasons'])}</ul>
             <div style="font-size:0.85rem; margin-top:0.5rem;">
-                ⏱ Scan time: {t_sec:.2f}s
+                ⏱ Scan time: {threat['scan_time']:.2f}s
             </div>
-        </div>
+            <div style="font-size:0.9rem; margin-top:0.75rem; line-height:1.5;">
+                <span style="font-weight:600; color:#ff66c4;">🧠 Threat Summary:</span>
+                <span style="display:inline-block; margin-top:0.4rem;">
+                    {re.sub(r'(?i)(misleading sender information|deceptive subject lines|suspicious links|storage service|unrealistic claims)', r'<b>\1</b>', threat.get("threat_summary", "N/A"))}
+                </span>
+            </div>
+            </div>
         """, unsafe_allow_html=True)
-      
-       # ⬇️ PDF DOWNLOAD BUTTON --------------------------------------
-        try:
-            pdf_bytes = make_pdf(threat)
-            if isinstance(pdf_bytes, bytearray):
-                pdf_bytes = bytes(pdf_bytes)
+        st.text_area(
+            "📋 Copyable Threat Summary",
+            value=threat.get("threat_summary", "N/A"),
+            height=100,
+            key="copy_threat_summary",
+            help="You can copy and paste this into reports or tickets.",
+            disabled=False
+        )
+        #MITRE TECHNIQUES
+        if isinstance(threat.get("mitre_techniques"), list):
+            st.write("### 🧩 MITRE ATT&CK Techniques")
+            for m in threat["mitre_techniques"]:
+                st.markdown(f"- `{m.get('id', '—')}` — {m.get('technique', '—')} (*{m.get('tactic', '—')}*)")
+        
+        if "hashes" in threat:
+            st.write("### File Hashes")
+            st.json(threat["hashes"])
 
-            # 🔑 convert bytearray → bytes
-            if not isinstance(pdf_bytes, bytes):
-                raise TypeError("PDF data is not valid binary")
+            if st.button("🔎 Lookup in VirusTotal"):
+                vt_result = virustotal_lookup(threat["hashes"]["sha256"])
+                if "error" in vt_result:
+                    st.error(f"VirusTotal error: {vt_result['error']}")
+                else:
+                    st.json(vt_result)
+        
+        if st.button("💣 Upload to Hybrid Analysis"):
+            hybrid_result = upload_to_hybrid(raw, "file.eml")
+            st.json(hybrid_result)
 
+        if st.button("📥 Get Hybrid Report"):
+            sha256 = threat.get("hashes", {}).get("sha256")
+            if sha256:
+                report = get_hybrid_report(sha256)
+                st.json(report)
+
+
+    st.write("### IP Reputation Details")
+
+    for ip in ips:
+        cols = st.columns([2, 1, 1, 2])
+        cols[0].code(ip)
+
+        # 🔄 Live threat lookup
+        threat_info = lookup_ip_threat(ip)
+        verdict = threat_info.get("verdict", "UNKNOWN")
+
+        cols[1].write(verdict)
+
+        ip_key = ip.replace(".", "-")
+
+        if ip in SAFE_IPS:
+            if cols[2].button("❌ Remove", key=f"remove-{ip_key}"):
+                SAFE_IPS.remove(ip)
+                save_safe_ips(SAFE_IPS)
+                st.success(f"{ip} removed from safelist")
+                st.rerun()
+        else:
+            if cols[2].button("➕ Safelist", key=f"safelist-{ip_key}"):
+                SAFE_IPS.add(ip)
+                save_safe_ips(SAFE_IPS)
+                st.success(f"{ip} added to safelist")
+                st.rerun()
+
+        if org := ORG_IPS.get(ip):
+            cols[3].caption(f"Used internally by **{org}**")
+
+        # ⬇️ Optional: Show full live feed data
+        with st.expander(f"ℹ️ More on {ip}", expanded=False):
+            st.json(threat_info)
+
+
+
+    # PDF bytes for export
+    pdf_bytes = make_pdf(threat)
+    if isinstance(pdf_bytes, bytearray):
+        pdf_bytes = bytes(pdf_bytes)
+
+    # Raw JSON expander
+    with st.expander("Full raw JSON"):
+        st.json(threat)
+
+    # ── Consolidated Export ────────────────────────────────────────────────
+    export_type = st.selectbox("Export as", ["PDF report","Latest scan JSON","Full history CSV"])
+    # ➊  Create a timestamp once per export click
+    timestamp = time.strftime("%Y%m%d_%H%M%S")     
+    # pick your data + filename + mime based on the selection
+    if export_type == "PDF report":
+        data, fn, mime = pdf_bytes, f"{level}_{timestamp}.pdf", "application/pdf"
+    elif export_type == "Latest scan JSON":
+        data, fn, mime = json.dumps(threat, indent=2), "latest_scan.json", "application/json"
+    else:
+        df = pd.DataFrame(st.session_state.history)
+        data, fn, mime = df.to_csv(index=False).encode(), "scan_history.csv", "text/csv"
+    st.download_button(f"⬇️ Download {export_type}", data=data, file_name=fn, mime=mime)
+
+    if st.button("⬇️ Download"):
+        if export_type == "PDF report":
             st.download_button(
-                "⬇️ Download PDF report",
+                "Download PDF report",
                 data=pdf_bytes,
                 file_name=f"{level}_{time.strftime('%Y%m%d_%H%M%S')}.pdf",
                 mime="application/pdf",
             )
-       
-        except Exception as e:
-            st.error(f"PDF generation failed: {e}")
-
-        # 👉 Raw JSON behind an expander
-        with st.expander("📑 Full raw JSON"):
-            st.json(threat)
-       
-        # Purged text download
-        if purge_on and "cleaned" in threat:
+        elif export_type == "Latest scan JSON":
             st.download_button(
-                "⬇️ Download Purged Text",
-                threat["cleaned"],
-                file_name="nichosec_purged.txt",
-                mime="text/plain",
+                "Download latest scan JSON",
+                data=json.dumps(threat, indent=2),
+                file_name="nch_latest_scan.json",
+                mime="application/json",
+            )
+        else:  # Full history CSV
+            df = pd.DataFrame(st.session_state.history)
+            csv_bytes = df.to_csv(index=False).encode("utf-8")
+            st.download_button(
+                "Download full history CSV",
+                data=csv_bytes,
+                file_name="nch_scan_history.csv",
+                mime="text/csv",
             )
 
-        # IP details
-        if ips:
-            with st.expander(f"🌐 IP info ({len(ips)})"):
-                for ip in ips:
-                    st.write(ip, lookup_ip(ip).get("org", ""))
-         # FOOTER -----------------------------------------------------------
-    st.caption(
-        "NichoSec V1 – Local security, zero cloud storage. ©2025 Addy Nicholson"
-    )
+        
 # ── DASHBOARD PAGE ─────────────────────────────────────────────────────
 def show_dashboard():
     """Quick KPI + history table pulled from st.session_state.history."""
-    import pandas as pd
-    st.title("📊 NichoSec – Dashboard")
+    st.title(" NichoSec – Dashboard")
 
     history = st.session_state.get("history", [])
     if not history:
@@ -499,6 +654,10 @@ def show_dashboard():
 if page == "Dashboard":
     show_dashboard()
 else:
-    show_scan_ui()
+    show_scan_ui()    
 
-   
+# FOOTER -----------------------------------------------------------
+st.caption(
+    "🔒 NichoSec V2 - Secure AI Threat Intelligence Tool | Local Scans, Private Results | ©2025 Addy Nicholson"
+)
+  
