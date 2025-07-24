@@ -1,4 +1,4 @@
-"# 🛡️ NichoSec V2 – AI-Powered Threat Scanner
+# 🛡️ NichoSec V2 – AI-Powered Threat Scanner
 
 **NichoSec V2** is a secure, private, AI-augmented local threat analysis platform for emails, documents, and IPs. It leverages NLP + threat feeds to detect phishing, malware, and spoofing attempts — all with no cloud storage.
 
