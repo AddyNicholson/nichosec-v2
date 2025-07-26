@@ -2,18 +2,21 @@ import streamlit as st
 from authlib.integrations.requests_client import OAuth2Session
 import os, base64
 
-# Get credentials from environment
+# Load from environment (set these in Render or Streamlit secrets)
 CLIENT_ID = os.environ["GOOGLE_CLIENT_ID"]
 CLIENT_SECRET = os.environ["GOOGLE_CLIENT_SECRET"]
-REDIRECT_URI = "https://nichosec-v2.onrender.com"
+REDIRECT_URI = "https://nichosec-v2.onrender.com"  # Replace if using Streamlit Cloud
 
 AUTH_URI = "https://accounts.google.com/o/oauth2/v2/auth"
 TOKEN_URI = "https://oauth2.googleapis.com/token"
 USER_INFO_URI = "https://www.googleapis.com/oauth2/v2/userinfo"
 
+# Optional: restrict access by email
 AUTHORIZED_USERS = {
     "mraddison.nicholson@gmail.com": "admin",
+    "anotheruser@gmail.com": "analyst",  # add more users if needed
 }
+ALLOW_ALL_USERS = True  # ← set to False if you want to restrict access
 
 def add_bg_from_local(image_file):
     with open(image_file, "rb") as f:
@@ -49,15 +52,15 @@ def login():
         user_info = resp.json()
 
         email = user_info.get("email")
-        role = AUTHORIZED_USERS.get(email)
+        role = AUTHORIZED_USERS.get(email) if not ALLOW_ALL_USERS else "user"
 
-        if role:
+        if ALLOW_ALL_USERS or role:
             st.session_state.user = email
-            st.session_state.role = role
-            st.success("Logged in successfully")
+            st.session_state.role = role or "user"
+            st.success(f"✅ Logged in as {email}")
             st.rerun()
         else:
-            st.error("Unauthorized user")
+            st.error("⛔ Unauthorized user")
             st.stop()
 
     oauth = OAuth2Session(CLIENT_ID, CLIENT_SECRET, redirect_uri=REDIRECT_URI, scope="openid email profile")
