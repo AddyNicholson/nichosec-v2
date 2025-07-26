@@ -380,9 +380,8 @@ def show_scan_ui():
             with st.spinner("Scanning all uploaded files…"):
                 for file in uploaded:
                     name = file.name.lower()
-                    raw_input = file.read() if name.endswith(".eml") else extract_text(file)
-                    
-                    report = scan(raw_input)  # ✅ ACTUALLY RUN SCAN
+                    st.session_state["last_raw"] = raw_input
+        
                     save_result(name, report)
                     st.session_state.threat = report
 
