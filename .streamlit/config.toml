@@ -1,0 +1,26 @@
+[server]
+headless = true
+
+[general]
+page_title = "NichoSec V2"
+page_icon = "🧠"
+
+[theme]
+base = "dark"
+primaryColor = "#00ffff"
+
+[client]
+showSidebarNavigation = true
+
+[runner]
+magicEnabled = false
+
+[global]
+developmentMode = false
+
+[server]
+port = 8501
+
+[app]
+# This tells Streamlit which file to run on deployment
+target = "src/ui/app.py"
