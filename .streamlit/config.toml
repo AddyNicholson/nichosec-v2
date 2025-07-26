@@ -1,5 +1,6 @@
 [server]
 headless = true
+port = 8501
 
 [general]
 page_title = "NichoSec V2"
@@ -17,9 +18,6 @@ magicEnabled = false
 
 [global]
 developmentMode = false
-
-[server]
-port = 8501
 
 [app]
 # This tells Streamlit which file to run on deployment

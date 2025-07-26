@@ -1,10 +1,9 @@
 openai>=1.0.0
 python-dotenv
 fpdf2
-streamlit
+streamlit>=1.25
 requests
 PyMuPDF
 beautifulsoup4
 python-docx
 pandas
-streamlit>=1.25
