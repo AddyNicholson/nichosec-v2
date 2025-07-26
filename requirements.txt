@@ -8,3 +8,6 @@ beautifulsoup4
 python-docx
 pandas
 ipinfo
+authlib
+openpyxl
+matplotlib
