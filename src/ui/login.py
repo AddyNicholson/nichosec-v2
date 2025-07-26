@@ -5,7 +5,7 @@ import os, base64
 # Get credentials from environment
 CLIENT_ID = os.environ["GOOGLE_CLIENT_ID"]
 CLIENT_SECRET = os.environ["GOOGLE_CLIENT_SECRET"]
-REDIRECT_URI = "http://localhost:8501"  # You can update this if deploying on a custom domain
+REDIRECT_URI = "https://nichosec-v2.onrender.com"
 
 AUTH_URI = "https://accounts.google.com/o/oauth2/v2/auth"
 TOKEN_URI = "https://oauth2.googleapis.com/token"
