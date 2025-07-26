@@ -380,14 +380,17 @@ def show_scan_ui():
             with st.spinner("Scanning all uploaded files…"):
                 for file in uploaded:
                     name = file.name.lower()
+                    raw_input = file.getvalue()  # 🧠 This sets raw_input to file content
                     st.session_state["last_raw"] = raw_input
-        
+
+                    report = scan(raw_input)  # ← Make sure this is actually running your scanner
                     save_result(name, report)
                     st.session_state.threat = report
 
                     pdf = make_pdf(report)
                     st.session_state.bulk_threats.append((name, report))
                     st.session_state.bulk_reports.append((f"{report['level']}_{name}.pdf", pdf))
+
             st.success(f"Scanned {len(st.session_state.bulk_threats)} files.")
     
     if st.session_state.get("bulk_threats"):
