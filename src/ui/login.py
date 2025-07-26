@@ -1,13 +1,11 @@
-# login.py  
 import streamlit as st
 from authlib.integrations.requests_client import OAuth2Session
-from dotenv import load_dotenv
 import os, base64
 
-load_dotenv()
-CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID")
-CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET")
-REDIRECT_URI = "http://localhost:8501"
+# Get credentials from environment
+CLIENT_ID = os.environ["GOOGLE_CLIENT_ID"]
+CLIENT_SECRET = os.environ["GOOGLE_CLIENT_SECRET"]
+REDIRECT_URI = "http://localhost:8501"  # You can update this if deploying on a custom domain
 
 AUTH_URI = "https://accounts.google.com/o/oauth2/v2/auth"
 TOKEN_URI = "https://oauth2.googleapis.com/token"
@@ -32,7 +30,6 @@ def add_bg_from_local(image_file):
     """, unsafe_allow_html=True)
 
 def login():
-    # Reset user session
     if "user" not in st.session_state:
         st.session_state.user = None
         st.session_state.role = None
@@ -42,13 +39,12 @@ def login():
 
     add_bg_from_local("assets/circuit_dark_bg.png")
 
-    # If redirected from Google
     if st.query_params.get("code"):
         code = st.query_params["code"]
         oauth = OAuth2Session(CLIENT_ID, CLIENT_SECRET, redirect_uri=REDIRECT_URI)
         token = oauth.fetch_token(TOKEN_URI, code=code)
         
-        oauth.token = token  # assign token to session
+        oauth.token = token
         resp = oauth.get(USER_INFO_URI)
         user_info = resp.json()
 
@@ -64,7 +60,6 @@ def login():
             st.error("Unauthorized user")
             st.stop()
 
-    # Always display login UI if not logged in
     oauth = OAuth2Session(CLIENT_ID, CLIENT_SECRET, redirect_uri=REDIRECT_URI, scope="openid email profile")
     auth_url, state = oauth.create_authorization_url(AUTH_URI)
     st.session_state.state = state
@@ -74,7 +69,6 @@ def login():
     st.markdown('<h2 style="color:white; margin-top: 10px;">Welcome to NichoSec</h2>', unsafe_allow_html=True)
     st.markdown('<p style="color:white; font-size: 1.1rem;">Click below to log in</p>', unsafe_allow_html=True)
 
-    # Modern button
     st.markdown(f""" 
         <div style="margin-top: 30px;">
             <a href="{auth_url}" target="_self" style="
@@ -94,22 +88,14 @@ def login():
     st.markdown('</div>', unsafe_allow_html=True)
     st.stop()
 
-
 def logout():
-    # Clear all login/session-related keys
     for k in ["user", "role", "auth_code", "auth_token", "state"]:
         st.session_state.pop(k, None)
 
-    # Optional: Clear app-specific session state (if used)
     for key in list(st.session_state.keys()):
         if key.startswith("email") or key.startswith("upload"):
             st.session_state.pop(key)
 
-    # Notify user
     st.toast("Logged out successfully. Redirecting to login...")
-
-    # Force refresh — login screen will auto-show if user is not in session
     st.query_params.clear()
     st.rerun()
-
-
