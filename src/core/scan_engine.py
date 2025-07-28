@@ -7,28 +7,36 @@ import ipaddress, re, time, urllib.parse as up
 from urllib.parse           import urlparse
 from typing                 import Dict, List
 from openai                 import APIError, RateLimitError
-from src.core.openai_client import client
-from src.core.threat_intel  import lookup_ip_threat
-from .email_ioc             import parse_eml, extract_iocs, extract_urls, extract_ips
 
-from .utils                 import parse_json, keyword_analysis
-from .constants             import PHISH_PATTERNS
-from src.core.constants     import SAFE_IPS
-from src.core.thresholds    import THREAT_THRESHOLDS
-from src.core.utils         import smarten_ip_verdict
 from bs4                    import BeautifulSoup
 from email                  import policy
 from email.parser           import BytesParser
 from email.message          import Message
-from src.core.reports       import save_result
-from src.core.mitre_mapping import MITRE_MAP
-import urllib.parse as up
-import hashlib
-import fitz  # PyMuPDF
-from docx                   import Document
+from hashlib                import md5
 from io                     import BytesIO
+from docx                   import Document
+import fitz  # PyMuPDF
+import hashlib
 
-from src.core.threat_intel import lookup_ip_threat, virustotal_lookup, upload_to_hybrid
+# ── Internal Modules ───────────────────────────────────────────────────
+from src.core.openai_client  import client
+from src.core.constants      import SAFE_IPS, PHISH_PATTERNS
+from src.core.thresholds     import THREAT_THRESHOLDS
+from src.core.reports        import save_result
+from src.core.mitre_mapping  import MITRE_MAP
+from src.core.threat_intel   import lookup_ip_threat, virustotal_lookup, upload_to_hybrid
+
+from .email_ioc import parse_eml, extract_iocs
+from .utils import extract_urls
+
+from .utils                  import (
+    parse_json,
+    keyword_analysis,
+    extract_urls,
+    extract_ips,
+    smarten_ip_verdict,
+)
+
 
 # ── Helper functions (image-only or link spam) ─────────────────────────
 def has_plain_text(msg: Message) -> bool:

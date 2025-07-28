@@ -11,12 +11,16 @@ import re
 import os
 import requests
 from typing import List, Tuple
+from src.core.openai_client import client
 
 from .constants import PHISH_PATTERNS
 from openai import OpenAI
 from src.core.thresholds import TRUSTED_HOSTING_PROVIDERS
 
-client = OpenAI()
+def ai_threat_summary(ip: str, abuse_data: dict, geo: dict) -> str:
+    from openai import OpenAI
+    client = OpenAI()
+
 
 # ── public helpers ──────────────────────────────────────────────────────
 
