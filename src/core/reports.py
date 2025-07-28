@@ -87,13 +87,25 @@ def make_pdf(report: dict) -> bytes:
     pdf.ln(6)
     pdf.set_text_color(0, 0, 0)
 
-    # -- Metadata Section --
     pdf.set_font_size(12)
-    pdf.cell(0, 14, f"From:    {report.get('from', '—')}", ln=1)
-    pdf.cell(0, 14, f"To:      {report.get('to', '—')}", ln=1)
-    pdf.cell(0, 14, f"Subject: {report.get('subject', '—')}", ln=1)
-    pdf.cell(0, 14, f"Date:    {report.get('date', '—')}", ln=1)
+    source = report.get("source", "unknown").lower()
+
+    if source in ("eml", "gmail", "email"):
+        pdf.cell(0, 14, f"From:    {report.get('from', '—')}", ln=1)
+        pdf.cell(0, 14, f"To:      {report.get('to', '—')}", ln=1)
+        pdf.cell(0, 14, f"Subject: {report.get('subject', '—')}", ln=1)
+        pdf.cell(0, 14, f"Date:    {report.get('date', '—')}", ln=1)
+    elif source in ("docx", "pdf", "txt"):
+        pdf.cell(0, 14, f"Filename: {report.get('filename', '—')}", ln=1)
+        if "word_count" in report:
+            pdf.cell(0, 14, f"Words: {report['word_count']}", ln=1)
+        if "page_count" in report:
+            pdf.cell(0, 14, f"Pages: {report['page_count']}", ln=1)
+    else:
+        pdf.cell(0, 14, f"Source: {source}", ln=1)
+
     pdf.ln(8)
+
 
     spf   = report.get("spf", "none").upper()
     dkim  = report.get("dkim", "none").upper()

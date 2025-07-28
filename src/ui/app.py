@@ -12,7 +12,7 @@ import os, json, re, base64, ipaddress, imaplib, tempfile, time
 from io import BytesIO
 import urllib.parse as up
 import email as email_lib
-
+import uuid
 import fitz                     # PyMuPDF   
 import pandas as pd
 import requests
@@ -186,10 +186,19 @@ with st.sidebar.expander("📧 Gmail Loader", expanded=False):
     if "gmail_msgs" in st.session_state:
         for msg_id, subject in st.session_state.gmail_msgs:
             if st.button(f"Scan: {subject[:40]}...", key=f"gmail-scan-{msg_id}"):
+
                 raw = gmail_loader.fetch_email_raw(msg_id)
-                result = scan(raw)
-                st.session_state.threat = result
-                st.success("Scan complete. See main panel.")
+                result = scan(raw)  # ✅ move this BEFORE using `result`
+
+                # Optional: flag it as a Gmail scan
+                result["source"] = "gmail"
+                result["subject"] = subject
+
+                user_id = st.session_state.get("user_email", str(uuid.uuid4()))
+                st.session_state[f"threat_{user_id}"] = result
+
+                st.success("✅ Scan complete. See main panel.")
+
 
 
 # ────────────────────────────────────────────────────────────────────────────────
@@ -278,7 +287,7 @@ def show_scan_ui():
         </div>
     """, unsafe_allow_html=True)
 
-    import uuid
+    
 
     # Generate a unique ID per scan or per session
     user_id = st.session_state.get("user_email")

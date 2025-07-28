@@ -9,7 +9,8 @@ from typing                 import Dict, List
 from openai                 import APIError, RateLimitError
 from src.core.openai_client import client
 from src.core.threat_intel  import lookup_ip_threat
-from .email_ioc             import parse_eml, extract_iocs
+from .email_ioc             import parse_eml, extract_iocs, extract_urls, extract_ips
+
 from .utils                 import parse_json, keyword_analysis
 from .constants             import PHISH_PATTERNS
 from src.core.constants     import SAFE_IPS
@@ -23,7 +24,12 @@ from src.core.reports       import save_result
 from src.core.mitre_mapping import MITRE_MAP
 import urllib.parse as up
 import hashlib
+import fitz  # PyMuPDF
+from docx                   import Document
+from io                     import BytesIO
+
 from src.core.threat_intel import lookup_ip_threat, virustotal_lookup, upload_to_hybrid
+
 # ── Helper functions (image-only or link spam) ─────────────────────────
 def has_plain_text(msg: Message) -> bool:
     for part in msg.walk():
@@ -122,6 +128,55 @@ def compute_hashes(data: bytes) -> dict:
     }
 
 
+def scan_docx(file_bytes: bytes, filename: str) -> dict:
+    doc = Document(BytesIO(file_bytes))
+    text = "\n".join(p.text for p in doc.paragraphs if p.text.strip())
+
+    words = text.split()
+    word_count = len(words)
+
+    report = {
+        "source": "docx",
+        "filename": filename,
+        "word_count": word_count,
+        "scan_time": 0.0,
+        "summary": "Scanned .docx document.",
+        "level": "GREEN",
+        "reasons": [],
+        "urls": extract_urls(text),
+        "ips": extract_ips(text),
+        "domains": extract_domains(text),
+    }
+
+    return report
+
+
+def scan_pdf(file_bytes: bytes, filename: str) -> dict:
+    doc = fitz.open(stream=file_bytes, filetype="pdf")
+    text = ""
+    for page in doc:
+        text += page.get_text()
+
+    word_count = len(text.split())
+    page_count = len(doc)
+
+    report = {
+        "source": "pdf",
+        "filename": filename,
+        "page_count": page_count,
+        "word_count": word_count,
+        "scan_time": 0.0,
+        "summary": "Scanned PDF document.",
+        "level": "GREEN",
+        "reasons": [],
+        "urls": extract_urls(text),
+        "ips": extract_ips(text),
+        "domains": extract_domains(text),
+    }
+
+    return report
+
+
 # ── Main Scan Function ─────────────────────────────────────────────────
 def scan(raw: str | bytes, purge: bool = False) -> dict:
     t0 = time.perf_counter()
@@ -130,6 +185,11 @@ def scan(raw: str | bytes, purge: bool = False) -> dict:
     final_verdict = "No signs of phishing or malicious activity"
     ips, eml, reasons = [], {}, []
     llm_reasons = []
+
+    vt_data = {}
+    sandbox_data = {}
+    file_hashes = {}
+
 
     if isinstance(raw, (bytes, bytearray)) and b"\nFrom:" in raw:
         msg_obj = BytesParser(policy=policy.default).parsebytes(raw)
