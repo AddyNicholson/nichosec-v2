@@ -56,6 +56,7 @@ def login():
 
         if ALLOW_ALL_USERS or role:
             st.session_state.user = email
+            st.session_state["user_email"] = email  # 👈 This is the golden session key for threat storage
             st.session_state.role = role or "user"
             st.success(f"✅ Logged in as {email}")
             st.rerun()

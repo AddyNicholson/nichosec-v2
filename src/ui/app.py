@@ -278,6 +278,23 @@ def show_scan_ui():
         </div>
     """, unsafe_allow_html=True)
 
+    import uuid
+
+    # Generate a unique ID per scan or per session
+    user_id = st.session_state.get("user_email")
+
+    if not user_id:
+        user_id = str(uuid.uuid4())
+        st.session_state["user_id"] = user_id
+
+
+    # Show who is logged in
+    user_email = st.session_state.get("user_email", "Unknown User")
+    st.caption(f"🔐 Logged in as: `{user_email}`")
+
+
+
+
 
     # ── IP THREAT INTELLIGENCE LOOKUP ───────────────────────────────
     with st.expander("IP Threat Intelligence Lookup", expanded=False):
@@ -385,7 +402,9 @@ def show_scan_ui():
 
                     report = scan(raw_input)  # ← Make sure this is actually running your scanner
                     save_result(name, report)
-                    st.session_state.threat = report
+                    user_id = st.session_state.get("user_email", str(uuid.uuid4()))
+                    st.session_state[f"threat_{user_id}"] = report
+
 
                     pdf = make_pdf(report)
                     st.session_state.bulk_threats.append((name, report))
@@ -427,7 +446,9 @@ def show_scan_ui():
 
 
     # ── PHASE 2: Always show results + export if we've scanned once ──
-    threat = st.session_state.get("threat")
+    user_id = st.session_state.get("user_email", str(uuid.uuid4()))
+    threat = st.session_state.get(f"threat_{user_id}")
+
     if not threat:
         st.info("Run a scan first ⬆️")
         return
