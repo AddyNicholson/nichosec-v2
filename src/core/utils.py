@@ -152,6 +152,26 @@ def smarten_ip_verdict(ip_data: dict, email_sender: str = "") -> tuple[str, int]
         verdict = "Likely safe - no indicators detected"
 
     return verdict, score
+def extract_urls(text: str) -> List[str]:
+    """
+    Extract all URLs from a given string.
+    """
+    return re.findall(r'https?://[^\s\'"<>]+', text)
+
+
+def extract_ips(text: str) -> List[str]:
+    """
+    Extract all IPv4 addresses from a given string.
+    """
+    return re.findall(r'\b(?:[0-9]{1,3}\.){3}[0-9]{1,3}\b', text)
 
 # Exportable symbols for “from core.utils import *”
-__all__ = ["parse_json", "keyword_analysis", "abuseip_lookup", "ai_threat_summary", "smarten_ip_verdict"]
+__all__ = [
+    "parse_json",
+    "keyword_analysis",
+    "abuseip_lookup",
+    "ai_threat_summary",
+    "smarten_ip_verdict",
+    "extract_urls",
+    "extract_ips"
+]
