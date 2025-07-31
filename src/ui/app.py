@@ -72,12 +72,26 @@ from src.core.threat_intel import (
     get_hybrid_report,
     get_ip_location
 )
-
+from urllib.parse import parse_qs, urlparse
 
 if not st.session_state.get("user"):
     login()
 else:
     st.sidebar.markdown(f"**{st.session_state.user}** ({st.session_state.role})")
+    if st.session_state.get("user_is_pro"):
+        st.sidebar.success("💼 Pro User")
+    else:
+        st.sidebar.info("🧪 Free User – Limited Access")
+        
+        scans_used = st.session_state.get("free_scan_count", 0)
+        scans_left = max(0, 3 - scans_used)
+        st.sidebar.progress(scans_left / 3)
+        st.sidebar.caption(f"📊 Free scans remaining: {scans_left}")
+
+        if scans_left == 0:
+            st.sidebar.error("⚠️ Upgrade required to continue scanning.")
+
+
     if st.sidebar.button("Log out"):
         logout()
 
@@ -104,6 +118,42 @@ def parse_json(s: str) -> dict:            # safe‑parse GPT output
             "summary": (s[:150] + "…") if s else "Model reply not JSON",
             "reasons": ["Fallback parse"],
         }
+
+## STRIPE PAYMENTS --------------------------------------------------------
+query_str = st.experimental_get_query_params()
+
+if "session_id" in query_str:
+    st.success("✅ Your payment was successful! Pro features unlocked.")
+    st.session_state["user_is_pro"] = True
+
+elif "cancelled" in query_str:
+    st.warning("❌ Payment cancelled.")
+    
+def show_payment_page():
+    st.title("🔐 Upgrade to NichoSec Pro")
+    st.markdown("Unlock unlimited scans and threat intel with a Pro subscription.")
+
+    if st.button("Subscribe Now"):
+        session = stripe.checkout.Session.create(
+            payment_method_types=['card'],
+            line_items=[{
+                'price': 'price_1RqjNx8w6ECVrDXvzpsRDp40',
+                'quantity': 1,
+            }],
+            mode='subscription',
+            success_url="https://nichosec-v2.onrender.com/?page=Success",
+            cancel_url="https://nichosec-v2.onrender.com/?page=Cancel",
+        )
+        st.write("Redirecting to Stripe...")
+        st.markdown(f"[Click here if not redirected]({session.url})")
+        st.experimental_set_query_params(redirect=session.url)
+
+def show_success():
+    st.success("✅ You're now subscribed to NichoSec Pro!")
+    st.balloons()
+
+def show_cancel():
+    st.warning("❌ Subscription was cancelled. Feel free to try again anytime.")
 
 # ── NETWORK HELPERS ───────────────────────────────────────────────────────
 
@@ -139,7 +189,14 @@ load_dotenv()                                          # .env → env vars
 
 # ── SIDEBAR NAVIGATION + BACKGROUND IMAGE ────────────────────────────────
 st.sidebar.title(" NichoSec")
-page = st.sidebar.radio("Navigate", ["Scan", "Dashboard"])
+page = st.sidebar.radio("Navigate", [
+    "Scan", 
+    "Dashboard", 
+    "Privacy Policy", 
+    "Terms of Service", 
+    "Disclaimer"
+])
+
 
 # right above bg_b64
 HERE = Path(__file__).parent          # folder that contains this .py file
@@ -198,6 +255,22 @@ with st.sidebar.expander("📧 Gmail Loader", expanded=False):
                 st.session_state[f"threat_{user_id}"] = result
 
                 st.success("✅ Scan complete. See main panel.")
+
+
+with st.sidebar.expander("💳 Upgrade to Pro", expanded=False):
+    st.markdown("Unlock full features, live scans, and pro exports.")
+    
+    if st.button("Upgrade via Stripe"):
+        from src.core.stripe_checkout import create_checkout_session
+        email = st.session_state.get("user_email", "test@fake.com")
+        checkout_url = create_checkout_session(email)
+        
+        if checkout_url:
+            st.success("Redirecting to Stripe Checkout…")
+            st.markdown(f"[Click here to continue →]({checkout_url})", unsafe_allow_html=True)
+        else:
+            st.error("Failed to start Stripe session.")
+
 
 
 
@@ -287,7 +360,16 @@ def show_scan_ui():
         </div>
     """, unsafe_allow_html=True)
 
-    
+    # ── PRO FEATURE PAYWALL ──────────────────────────────────────
+    if not st.session_state.get("user_is_pro", False):
+        st.warning("🚫 This feature requires a Pro subscription.")
+        st.stop()
+
+    if scans_used >= 3:
+        st.warning("🚫 Free scan limit reached.")
+        st.markdown("Upgrade to Pro in the sidebar to unlock unlimited scans.")
+        st.stop()
+
 
     # Generate a unique ID per scan or per session
     user_id = st.session_state.get("user_email")
@@ -392,7 +474,14 @@ def show_scan_ui():
                 st.info(f"{len(uploaded)} files ready for bulk scan.")
             
         text_in = st.text_area("…or paste raw email / text here", height=150)
-        scan_clicked = st.button("Run Scan", type="primary")
+
+        agree = st.checkbox(
+            "I agree to the [Privacy Policy](?page=Privacy+Policy) and [Terms of Service](?page=Terms+of+Service).",
+            value=False
+        )
+
+        scan_clicked = st.button("Run Scan", type="primary", disabled=not agree)
+
         
         st.markdown("</div>", unsafe_allow_html=True)
 
@@ -685,11 +774,40 @@ def show_dashboard():
 # ── ROUTER (must be flush-left) ─────────────────────────────────────────
 if page == "Dashboard":
     show_dashboard()
-else:
-    show_scan_ui()    
+
+elif page == "Scan":
+    show_scan_ui()
+
+elif page == "Privacy Policy":
+    st.title("Privacy Policy")
+    with open("src/legal/privacy_policy.md") as f:
+        st.markdown(f.read(), unsafe_allow_html=True)
+
+elif page == "Terms of Service":
+    st.title("Terms of Service")
+    with open("src/legal/terms_of_service.md") as f:
+        st.markdown(f.read(), unsafe_allow_html=True)
+
+elif page == "Disclaimer":
+    st.title("Disclaimer")
+    with open("src/legal/disclaimer.md") as f:
+        st.markdown(f.read(), unsafe_allow_html=True)
+
+# ⬇️ Add these after
+elif page == "Subscribe":
+    show_payment_page()
+elif page == "Success":
+    show_success()
+elif page == "Cancel":
+    show_cancel()
+
+
 
 # FOOTER -----------------------------------------------------------
 st.caption(
-    "🔒 NichoSec V2 - Secure AI Threat Intelligence Tool | Local Scans, Private Results | ©2025 Addy Nicholson"
+    "🔒 NichoSec V2 | Secure AI Threat Scanner | "
+    "[Privacy Policy](?page=Privacy+Policy) • "
+    "[Terms](?page=Terms+of+Service) • "
+    "[Disclaimer](?page=Disclaimer) • "
+    "©2025 Addy Nicholson"
 )
-  
