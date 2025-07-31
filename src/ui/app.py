@@ -191,11 +191,14 @@ load_dotenv()                                          # .env → env vars
 # ── SIDEBAR NAVIGATION + BACKGROUND IMAGE ────────────────────────────────
 st.sidebar.title(" NichoSec")
 page = st.sidebar.radio("Navigate", [
-    "Scan", 
-    "Dashboard", 
-    "Privacy Policy", 
-    "Terms of Service", 
-    "Disclaimer"
+    "Scan",
+    "Dashboard",
+    "Privacy Policy",
+    "Terms of Service",
+    "Disclaimer",
+    "Subscribe",        # ← ADD
+    "Success",          # ← ADD
+    "Cancel"            # ← ADD
 ])
 
 
