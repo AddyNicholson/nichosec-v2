@@ -776,7 +776,13 @@ if page == "Dashboard":
     show_dashboard()
 
 elif page == "Scan":
+    if not st.session_state.get("user_is_pro", False):
+        st.warning("🔒 This feature requires a Pro subscription.")
+        st.page_link("?page=Subscribe", label="💳 Upgrade to Pro", icon="💳")
+        st.stop()
+
     show_scan_ui()
+
 
 elif page == "Privacy Policy":
     st.title("Privacy Policy")
