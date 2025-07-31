@@ -121,7 +121,8 @@ def parse_json(s: str) -> dict:            # safe‑parse GPT output
         }
 
 ## STRIPE PAYMENTS --------------------------------------------------------
-query_str = st.experimental_get_query_params()
+query_str = st.query_params
+
 
 if "session_id" in query_str:
     st.success("✅ Your payment was successful! Pro features unlocked.")
@@ -147,7 +148,7 @@ def show_payment_page():
         )
         st.write("Redirecting to Stripe...")
         st.markdown(f"[Click here if not redirected]({session.url})")
-        st.experimental_set_query_params(redirect=session.url)
+        st.query_params["redirect"] = session.url
 
 def show_success():
     st.success("✅ You're now subscribed to NichoSec Pro!")
