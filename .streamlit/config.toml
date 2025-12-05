@@ -17,7 +17,7 @@ showSidebarNavigation = true
 magicEnabled = false
 
 [global]
-developmentMode = false
+developmentMode = true
 
 [app]
 # This tells Streamlit which file to run on deployment
