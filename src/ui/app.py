@@ -72,6 +72,16 @@ from src.core.threat_intel import (
     get_hybrid_report,
     get_ip_location
 )
+
+# DEV MODE based on Streamlit config.toml
+try:
+    DEV_MODE = st.config.get_option("global.developmentMode")
+except Exception:
+    DEV_MODE = False
+
+if DEV_MODE:
+    st.session_state.setdefault("user_is_pro", True)
+
 from urllib.parse import parse_qs, urlparse
 import stripe
 
