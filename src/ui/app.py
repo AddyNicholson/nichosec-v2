@@ -272,22 +272,25 @@ with st.sidebar.expander("📧 Gmail Loader", expanded=False):
 
 with st.sidebar.expander("💳 Upgrade to Pro", expanded=False):
     st.markdown("Unlock full features, live scans, and pro exports.")
-    
-   if st.button("Upgrade via Stripe"):
+
+    if st.button("Upgrade via Stripe"):
         if DEV_MODE:
             st.info("DEV_MODE active — paywall disabled.")
         else:
-        # original Stripe code here
+            # Original Stripe checkout logic
+            from src.core.stripe_checkout import create_checkout_session
 
-        from src.core.stripe_checkout import create_checkout_session
-        email = st.session_state.get("user_email", "test@fake.com")
-        checkout_url = create_checkout_session(email)
-        
-        if checkout_url:
-            st.success("Redirecting to Stripe Checkout…")
-            st.markdown(f"[Click here to continue →]({checkout_url})", unsafe_allow_html=True)
-        else:
-            st.error("Failed to start Stripe session.")
+            email = st.session_state.get("user_email", "test@fake.com")
+            checkout_url = create_checkout_session(email)
+
+            if checkout_url:
+                st.success("Redirecting to Stripe Checkout…")
+                st.markdown(
+                    f"[Click here to continue →]({checkout_url})",
+                    unsafe_allow_html=True
+                )
+            else:
+                st.error("Failed to start Stripe session.")
 
 
 
