@@ -275,7 +275,12 @@ with st.sidebar.expander("📧 Gmail Loader", expanded=False):
 with st.sidebar.expander("💳 Upgrade to Pro", expanded=False):
     st.markdown("Unlock full features, live scans, and pro exports.")
     
-    if st.button("Upgrade via Stripe"):
+   if st.button("Upgrade via Stripe"):
+        if DEV_MODE:
+            st.info("DEV_MODE active — paywall disabled.")
+        else:
+        # original Stripe code here
+
         from src.core.stripe_checkout import create_checkout_session
         email = st.session_state.get("user_email", "test@fake.com")
         checkout_url = create_checkout_session(email)
@@ -376,7 +381,7 @@ def show_scan_ui():
     """, unsafe_allow_html=True)
 
     # ── PRO FEATURE PAYWALL ──────────────────────────────────────
-    if not st.session_state.get("user_is_pro", False):
+    if not (DEV_MODE or st.session_state.get("user_is_pro", False)):
         st.warning("🚫 This feature requires a Pro subscription.")
         st.stop()
 
