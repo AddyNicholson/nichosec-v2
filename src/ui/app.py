@@ -74,13 +74,11 @@ from src.core.threat_intel import (
 )
 
 # DEV MODE based on Streamlit config.toml
-try:
-    DEV_MODE = st.config.get_option("global.developmentMode")
-except Exception:
-    DEV_MODE = False
 
+DEV_MODE = os.getenv("NCHO_DEV_MODE", "false").lower() == "true"
 if DEV_MODE:
     st.session_state.setdefault("user_is_pro", True)
+
 
 from urllib.parse import parse_qs, urlparse
 import stripe
