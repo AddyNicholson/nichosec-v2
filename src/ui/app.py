@@ -128,49 +128,7 @@ def parse_json(s: str) -> dict:            # safe‑parse GPT output
             "reasons": ["Fallback parse"],
         }
 
-## STRIPE PAYMENTS --------------------------------------------------------
 
-query_str = st.query_params
-
-# Handle return from Stripe
-if "session_id" in query_str:
-    st.success("✅ Your payment was successful! Pro features unlocked.")
-    st.session_state["user_is_pro"] = True
-
-elif "cancelled" in query_str:
-    st.warning("❌ Payment cancelled.")
-
-
-def show_payment_page():
-    st.title("🔐 Upgrade to NichoSec Pro")
-    st.markdown("Unlock unlimited scans and threat intel with a Pro subscription.")
-
-    if st.button("Subscribe Now"):
-        session = stripe.checkout.Session.create(
-            payment_method_types=['card'],
-            line_items=[{
-                'price': 'price_1RqjNx8w6ECVrDXvzpsRDp40',
-                'quantity': 1,
-            }],
-            mode='subscription',
-            success_url="https://nichosec-v2.onrender.com/?session_id={CHECKOUT_SESSION_ID}",
-            cancel_url="https://nichosec-v2.onrender.com/?cancelled=1",
-        )
-
-        st.info("Opening Stripe Checkout…")
-        st.markdown(f"[Click here to continue →]({session.url})")
-        
-        # Update query params properly
-        st.query_params = {"redirect": session.url}
-
-
-def show_success():
-    st.success("✅ You're now subscribed to NichoSec Pro!")
-    st.balloons()
-
-
-def show_cancel():
-    st.warning("❌ Subscription was cancelled. Feel free to try again anytime.")
 
 # ── NETWORK HELPERS ───────────────────────────────────────────────────────
 
