@@ -74,9 +74,9 @@ def generate_verdict(abuse: dict, otx: dict) -> str:
     abuse_score = abuse.get("confidence_score", 0)
     otx_count = otx.get("pulse_info", {}).get("count", 0)
 
-    if abuse_score > 80 or otx_count > 0:
+    if abuse_score > 70 or otx_count > 0:
         return "HIGH RISK"
-    elif abuse_score > 30:
+    elif abuse_score > 20:
         return "SUSPICIOUS"
     else:
         return "LIKELY BENIGN"
