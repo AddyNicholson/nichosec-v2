@@ -185,118 +185,68 @@ def scan_pdf(file_bytes: bytes, filename: str) -> dict:
     return report
 
 
-# ── Main Scan Function ─────────────────────────────────────────────────
 def scan(raw: str | bytes, purge: bool = False) -> dict:
     t0 = time.perf_counter()
-    final_score = 0
-    final_label = "GREEN"
-    final_verdict = "No signs of phishing or malicious activity"
-    ips, eml, reasons = [], {}, []
-    llm_reasons = []
+    ips, eml, reasons, llm_reasons = [], {}, [], []
 
-    vt_data = {}
-    sandbox_data = {}
-    file_hashes = {}
+    vt_data, sandbox_data, file_hashes = {}, {}, {}
 
-
+    # ── Parse email if bytes ───────────────────────────────
     if isinstance(raw, (bytes, bytearray)) and b"\nFrom:" in raw:
         msg_obj = BytesParser(policy=policy.default).parsebytes(raw)
         eml = parse_eml(raw)
         eml["domains"] = extract_domains(eml.get("urls", []))
         ips = eml.get("ips", [])
         file_hashes = compute_hashes(raw)
+
         sha256 = file_hashes["sha256"]
         vt_data = virustotal_lookup(sha256)
         sandbox_data = upload_to_hybrid(raw, filename="scan_file.eml")
+
         if eml.get("spf") == "fail" or eml.get("dkim") == "fail":
             reasons.append("Sender failed SPF or DKIM checks")
-        php_links = [u for u in eml["urls"] if u.lower().endswith(".php") and urlparse(u).netloc.lower() not in TRUSTED_PHP_HOSTS]
+
+        php_links = [
+            u for u in eml["urls"]
+            if u.lower().endswith(".php") and urlparse(u).netloc.lower() not in TRUSTED_PHP_HOSTS
+        ]
         if php_links:
             reasons.append(f"{len(php_links)} .php link(s) on non-whitelisted hosts")
+
         if eml.get("high_risk_ip_hit"):
             risky = [ip for ip in eml["ips"] if ip not in SAFE_IPS]
             if risky:
                 reasons.append("Mail relayed via high-risk IP (fraud ≥ 70)")
+
         if is_suspicious_blast_pattern(msg_obj):
             reasons.append("Image-only blast with embedded links")
 
+    # Decode bytes if necessary
     if isinstance(raw, (bytes, bytearray)):
         raw = raw.decode(errors="ignore")
-
     body = raw.partition("\n\n")[2] or raw
+
+    # Fallback IP extraction
     if not ips:
         ips = sorted({w.strip('.,;:') for w in raw.split() if is_valid_ip(w)})
 
     frm_domain = extract_from_domain(raw)
     auth = auth_results(raw)
-    
-    # ── 2️⃣ IP THREAT INTELLIGENCE ──────────────────────────────────────
-    
-    ip_risks  = {"avg": 0, "high": 0, "medium": 0, "count": 0}
-    ip_scores = []
-    ip_threats = {}
-    for ip in ips:
-        if ip in SAFE_IPS:
-            continue
-        intel = lookup_ip_threat(ip)
-        ip_threats[ip] = intel 
-        score = intel.get("adjusted_score", intel.get("fraud_score", 0))
-        
-        # ── AUTH + WHITELIST ADJUSTMENT ────────────────────────
-        if frm_domain and is_whitelisted(frm_domain, ip):
-            score = 0
-        elif auth["spf"] and auth["dkim"] and auth["dmarc"]:
-            score *= 0.4
-        elif auth["dmarc"]:
-            score *= 0.6
 
-        # ② now record it
-        ip_scores.append(score)
-        ip_risks["count"] += 1
-        ip_risks["avg"]   += score
-        if score >= THREAT_THRESHOLDS["RED"]:
-            ip_risks["high"] += 1
-        elif score >= THREAT_THRESHOLDS["YELLOW"]:
-            ip_risks["medium"] += 1
-        
-        
-    if ip_risks["count"] > 0:
-        ip_risks["avg"] /= ip_risks["count"]
-
-    # translate raw counts → a friendly verdict + 0–100 score
-    ip_verdict, ip_score = smarten_ip_verdict(ip_risks)
-    ip_points = min(ip_score * 0.4, IP_MAX_POINTS)
-
-    # Add readable IP threat report to reasons
-    if ip_risks["count"]:
-        reasons.append(f"Scanned {ip_risks['count']} IP(s); avg threat score: {ip_risks['avg']:.1f}")
-        if ip_risks["high"] > 0:
-            reasons.append(f"{ip_risks['high']} IP(s) marked as HIGH risk")
-        if ip_risks["medium"] > 0:
-            reasons.append(f"{ip_risks['medium']} IP(s) marked as MODERATE risk")
-
+    # ── Keyword & Content Analysis ─────────────────────────
     kw_score, kw_reasons = keyword_analysis(body)
     content_points = min(kw_score * 10, CONTENT_MAX)
     if "<script" in body.lower():
         content_points += 15
-        kw_reasons.append("Inline <script> tag")
+        kw_reasons.append("Inline <script> tag detected")
 
-    
-    
-    # ── DOMAIN ANALYSIS ───────────────────────────────────────────────
+    # ── Domain Analysis ───────────────────────────────────
     domain_points = 0
     domain_reasons = []
     domain_keywords = {"login", "secure", "verify", "update", "account", "click", "free", "urgent"}
-    bad_domains = {"badsite.com", "phishy.biz", "known-scam.co"}  # TODO: Replace with live intel later
+    bad_domains = {"badsite.com", "phishy.biz", "known-scam.co"}
 
-    extracted_domains = set()
-
-    # ① From address domain
-    from_domain = frm_domain
-    if from_domain:
-        extracted_domains.add(from_domain)
-
-    # ② Domains from links
+    extracted_domains = set([frm_domain] if frm_domain else [])
     for u in eml.get("urls", []):
         try:
             d = urlparse(u).netloc.lower()
@@ -305,7 +255,6 @@ def scan(raw: str | bytes, purge: bool = False) -> dict:
         except:
             continue
 
-    # ③ Evaluate domains
     for d in extracted_domains:
         if d in bad_domains:
             domain_points += 25
@@ -317,171 +266,135 @@ def scan(raw: str | bytes, purge: bool = False) -> dict:
             domain_points += 5
             domain_reasons.append(f"Malformed or suspicious domain format: {d}")
 
-    # Cap domain points to avoid wild spikes
-    domain_points = min(domain_points, 40)
+    domain_points = min(domain_points, 60)  # increase cap for multiple bad domains
 
+    # ── IP Threat Intelligence ─────────────────────────────
+    ip_risks, ip_scores, ip_threats = {"avg":0,"high":0,"medium":0,"count":0}, [], {}
+    for ip in ips:
+        if ip in SAFE_IPS:
+            continue
+        intel = lookup_ip_threat(ip)
+        ip_threats[ip] = intel
+        score = intel.get("adjusted_score", intel.get("fraud_score", 0))
 
-    links = re.findall(r"href=['\"]?([^'\" >]+)", body, flags=re.I)
-    link_list = "\n".join(f"- {up.unquote(l)[:120]}" for l in links[:20]) or "None"
-    prompt = f"""
-    Analyze this email for phishing indicators.
-    Decide **RED** / **YELLOW** / **GREEN**.
-    Return strict JSON: {{"level":"","summary":"","reasons":[]}}
+        if frm_domain and is_whitelisted(frm_domain, ip):
+            score = 0
+        elif auth["spf"] and auth["dkim"] and auth["dmarc"]:
+            score *= 0.4
+        elif auth["dmarc"]:
+            score *= 0.6
 
-    Visible links:\n{link_list}
-    """
+        ip_scores.append(score)
+        ip_risks["count"] += 1
+        ip_risks["avg"] += score
+        if score >= THREAT_THRESHOLDS["RED"]:
+            ip_risks["high"] += 1
+        elif score >= THREAT_THRESHOLDS["YELLOW"]:
+            ip_risks["medium"] += 1
 
+    if ip_risks["count"]:
+        ip_risks["avg"] /= ip_risks["count"]
+
+    # Forced escalation for high-risk IP
+    high_risk_ips = [s for s in ip_scores if s >= 70]
+    if high_risk_ips:
+        ip_points = max(ip_scores)
+        reasons.append(f"{len(high_risk_ips)} high-risk IP(s) detected; forced escalation")
+    else:
+        ip_points = min(sum(ip_scores) * 0.4, IP_MAX_POINTS)
+
+    # Add IP threat summary to reasons
+    if ip_risks["count"]:
+        reasons.append(f"Scanned {ip_risks['count']} IP(s); avg threat score: {ip_risks['avg']:.1f}")
+        if ip_risks["high"]:
+            reasons.append(f"{ip_risks['high']} IP(s) HIGH risk")
+        if ip_risks["medium"]:
+            reasons.append(f"{ip_risks['medium']} IP(s) MODERATE risk")
+
+    # ── LLM Analysis ──────────────────────────────────────
     llm_level, llm_summary, llm_reasons, t_llm = "YELLOW", "LLM unavailable", [], 0.0
-       # … your first LLM call …
     try:
-        t0 = time.perf_counter()
+        t0_llm = time.perf_counter()
+        links = "\n".join(f"- {up.unquote(l)[:120]}" for l in re.findall(r"href=['\"]?([^'\" >]+)", body, flags=re.I)[:20]) or "None"
+        prompt = f"""
+        Analyze this email for phishing indicators.
+        Decide RED / YELLOW / GREEN.
+        Return strict JSON: {{"level":"","summary":"","reasons":[]}}
+
+        Visible links:\n{links}
+        """
         resp = client.chat.completions.create(
             model="gpt-4o-mini",
             messages=[{"role": "user", "content": prompt + "\n\n" + body[:15000]}],
-            temperature=0.1,
+            temperature=0.1
         )
         ans = parse_json(resp.choices[0].message.content)
-        llm_level   = ans.get("level",   "YELLOW").upper()
+        llm_level   = ans.get("level", "YELLOW").upper()
         llm_summary = ans.get("summary", "No summary")
-        llm_reasons = ans.get("reasons",  [])
-        t_llm       = round(time.perf_counter() - t0, 2)
-    
-    except (RateLimitError, APIError):
-        # we swallow LLM errors and keep the defaults below
-        pass
-    
-     # ── MITRE TTP Mapping ───────────────────────────────────────────────
-    try:
-        # OpenAI LLM call here
-        ...
         llm_reasons = ans.get("reasons", [])
-    except Exception as e:
-        print("LLM error:", e)  # Optional for debugging
-        
+        t_llm = round(time.perf_counter() - t0_llm, 2)
+    except Exception:
+        pass
 
-    # ✅ Safe now
-    all_reasons = kw_reasons + llm_reasons + reasons
-    mitre_hits = []
-    for reason in all_reasons:
-        for pattern, mitre in MITRE_MAP.items():
-            if pattern in reason.lower():
-                mitre_hits.append(mitre)
+    # ── Compute final score ───────────────────────────────
+    llm_points = {"GREEN":0, "YELLOW":20, "RED":50}[llm_level]
+    auth_points = AUTH_WEIGHT if all(auth.values()) else 0
+    risk_points = max(0, content_points + domain_points + ip_points + llm_points + auth_points)
 
-      # Calculate contributions
-    llm_points   = {"GREEN": 0, "YELLOW": 20, "RED": 50}[llm_level]
-    auth_points  = AUTH_WEIGHT if all(auth.values()) else 0
-    risk_points  = max(0, content_points + ip_points + llm_points + auth_points)
-
-    # (full reasons & metadata remain in result, and can be downloaded)
-    final_label  = classify(risk_points)
+    final_label = classify(risk_points)
     final_verdict = {
         "GREEN":  "No signs of phishing or malicious activity",
         "YELLOW": "Some suspicious patterns detected",
         "RED":    "Significant phishing or malicious indicators detected"
     }[final_label]
 
-    # Only show verdict + score
+    # Forced escalation for VirusTotal or Sandbox
+    if any([
+        vt_data.get("data", {}).get("attributes", {}).get("last_analysis_stats", {}).get("malicious",0) >= 3,
+        sandbox_data.get("threat_score",0) >= 60,
+        high_risk_ips
+    ]) and final_label == "GREEN":
+        final_label = "YELLOW"
+        final_verdict = "Suspicious indicators detected; escalation applied"
+        reasons.append("Forced escalation due to critical IP, VirusTotal, or Hybrid Analysis score")
+
     summary = f"{final_verdict} ({final_label}, score={risk_points:.1f})"
-    threat_summary = "Threat summary unavailable"
-  
-    # ── AI One-liner Threat Summary ────────────────────────────────
-    
-    try:
-        # Build top reasons with IP risk included
-        top_reasons = (kw_reasons + llm_reasons + reasons)
-        ip_risk_line = (
-            f"Average IP threat score: {ip_risks['avg']:.1f} with {ip_risks['high']} high-risk IP(s)"
-            if ip_risks["count"] else ""
-        )
-        top_reasons = ([ip_risk_line] if ip_risk_line else []) + top_reasons
-        top_reasons = top_reasons[:4]  # Limit total lines for context
 
-        # Call GPT to generate concise threat summary
-        resp_summary = client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[
-                {
-                    "role": "system",
-                    "content": (
-                        "You are a cybersecurity analyst. "
-                        "In one concise sentence, summarize the overall threat level "
-                        "and main risk indicator(s) of this email."
-                    )
-                },
-                {
-                    "role": "user",
-                    "content": (
-                        f"Threat level: {final_label}\n"
-                        "Top reasons:\n" + "\n".join(top_reasons)
-                    )
-                },
-            ],
-            temperature=0.2,
-        )
-        threat_summary = resp_summary.choices[0].message.content.strip()
-    except Exception:
-        if final_label == "GREEN":
-            threat_summary = "The email poses no signs of phishing or malicious activity."
-        else:
-            threat_summary = f"Threat level: {final_label} — summary unavailable due to system error."       
-            pass
-    # ─ Condensed verdicts ────────────────────────────────────────────────
-    vt_summary = {
-        "malicious": vt_data.get("data", {}).get("attributes", {}).get("last_analysis_stats", {}).get("malicious", 0),
-        "suspicious": vt_data.get("data", {}).get("attributes", {}).get("last_analysis_stats", {}).get("suspicious", 0),
-        "undetected": vt_data.get("data", {}).get("attributes", {}).get("last_analysis_stats", {}).get("undetected", 0),
-        "reputation": vt_data.get("data", {}).get("attributes", {}).get("reputation", 0),
-        "permalink": vt_data.get("data", {}).get("links", {}).get("self", "")
-    }
+    # ── Assemble result ───────────────────────────────────
+    all_reasons = kw_reasons + llm_reasons + domain_reasons + reasons
+    mitre_hits = [MITRE_MAP[p] for p in MITRE_MAP if any(p in r.lower() for r in all_reasons)]
 
-    sandbox_summary = {
-        "score": sandbox_data.get("threat_score", 0),
-        "verdict": sandbox_data.get("verdict", "Unknown"),
-        "submitted_url": sandbox_data.get("submit_name", "N/A"),
-        "environment": sandbox_data.get("environment_description", "N/A"),
-    }
-
-    # Optional scoring logic
-    if vt_summary["malicious"] >= 3:
-        reasons.append(f"{vt_summary['malicious']} engines flagged this file in VirusTotal.")
-
-    if sandbox_summary["score"] >= 60:
-        reasons.append(f"Hybrid Analysis score: {sandbox_summary['score']} – Verdict: {sandbox_summary['verdict']}")
-
-    
-    # ── Assemble the final result ───────────────────────────────────── 
     result = {
-        "level":         final_label,
-        "summary":       summary,
-        "reasons":       kw_reasons + llm_reasons + reasons,
-        "ips":           eml.get("ips", ips),
+        "level": final_label,
+        "summary": summary,
+        "reasons": all_reasons,
+        "ips": eml.get("ips", ips),
         "components": {
-            "auth":    auth_points,
-            "ip":      ip_points,
+            "auth": auth_points,
+            "ip": ip_points,
             "content": content_points,
-            "llm":     llm_points,
+            "domain": domain_points,
+            "llm": llm_points,
             "hashes": file_hashes,
-            "vt": vt_summary,
-            "sandbox": sandbox_summary,
+            "vt": vt_data,
+            "sandbox": sandbox_data
         },
-        "scan_time":      t_llm,
-        "threat_summary": threat_summary,
-        "ip_scores":  {ip: round(s, 1) for ip, s in zip(ips, ip_scores)},
+        "scan_time": t_llm,
+        "threat_summary": "Threat summary unavailable",
+        "ip_scores": {ip: round(s,1) for ip,s in zip(ips, ip_scores)},
         "ip_threats": ip_threats,
         "mitre_techniques": mitre_hits,
-
-
-        # ⬇️ New: For PDF reporting
-        "from":    eml.get("from", "—"),
-        "to":      eml.get("to", "—"),
-        "subject": eml.get("subject", "—"),
-        "date":    eml.get("date", "—")
+        "from": eml.get("from","—"),
+        "to": eml.get("to","—"),
+        "subject": eml.get("subject","—"),
+        "date": eml.get("date","—")
     }
 
+    # Optional purge
     if purge and final_label != "GREEN":
         cleaned = "\n".join(
             l for l in raw.splitlines()
-            if not any(t in l.lower() for t in ("seed phrase", "wire transfer", "password"))
+            if not any(t in l.lower() for t in ("seed phrase","wire transfer","password"))
         )
         result["cleaned"] = cleaned[:10000]
 
