@@ -366,8 +366,7 @@ with st.sidebar.expander("💬  Ask NichoSec AI", expanded=False):
             st.error(f"OpenAI API Error: {e.__class__.__name__}: {e}")
 
 def show_scan_ui():
-      
-        # ── HEADER ─────────────────────────────────────────────────────
+    # ── HEADER ─────────────────────────────────────────────────────
     logo_b64 = to_base64("assets/shield_pulse_dark.png")
     st.markdown(f"""
         <div style="background:rgba(255,255,255,0.05); padding:1rem; border-radius:8px; margin-bottom:1.5rem;">
@@ -386,27 +385,21 @@ def show_scan_ui():
         st.warning("🚫 This feature requires a Pro subscription.")
         st.stop()
 
+    scans_used = st.session_state.get("scans_used", 0)
     if scans_used >= 3:
         st.warning("🚫 Free scan limit reached.")
         st.markdown("Upgrade to Pro in the sidebar to unlock unlimited scans.")
         st.stop()
 
-
-    # Generate a unique ID per scan or per session
+    # Unique user/session ID
     user_id = st.session_state.get("user_email")
-
     if not user_id:
         user_id = str(uuid.uuid4())
         st.session_state["user_id"] = user_id
 
-
-    # Show who is logged in
+    # Logged-in indicator
     user_email = st.session_state.get("user_email", "Unknown User")
     st.caption(f"🔐 Logged in as: `{user_email}`")
-
-
-
-
 
     # ── IP THREAT INTELLIGENCE LOOKUP ───────────────────────────────
     with st.expander("IP Threat Intelligence Lookup", expanded=False):
