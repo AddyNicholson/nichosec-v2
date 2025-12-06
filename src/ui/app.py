@@ -204,16 +204,20 @@ st.set_page_config(page_title="NichoSec | Local Threat Scanner",
 from dotenv import load_dotenv
 load_dotenv()                                          # .env → env vars
 
-# ────────────────────────────────────────────────────────────────
-# SIDEBAR NAVIGATION + BACKGROUND IMAGE
+# ──────────────────────────────────────────────────────────────── 
+# CLEAN SIDEBAR NAVIGATION
 # ────────────────────────────────────────────────────────────────
 
 st.sidebar.title("NichoSec")
 
+# User info (optional)
+user_email = st.session_state.get("user_email", "user@unknown.com")
+st.sidebar.caption(f"Logged in as: **{user_email}**")
+
+# Clean navigation
 page = st.sidebar.radio(
     "Navigate",
-    ["Scan", "Dashboard", "Privacy Policy", "Terms of Service",
-     "Disclaimer", "Subscribe", "Success", "Cancel"]
+    ["Scan", "Dashboard", "Privacy Policy", "Terms of Service", "Disclaimer"],
 )
 
 # Load background
