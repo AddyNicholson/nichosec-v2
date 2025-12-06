@@ -129,16 +129,18 @@ def parse_json(s: str) -> dict:            # safe‑parse GPT output
         }
 
 ## STRIPE PAYMENTS --------------------------------------------------------
+
 query_str = st.query_params
 
-
+# Handle return from Stripe
 if "session_id" in query_str:
     st.success("✅ Your payment was successful! Pro features unlocked.")
     st.session_state["user_is_pro"] = True
 
 elif "cancelled" in query_str:
     st.warning("❌ Payment cancelled.")
-    
+
+
 def show_payment_page():
     st.title("🔐 Upgrade to NichoSec Pro")
     st.markdown("Unlock unlimited scans and threat intel with a Pro subscription.")
@@ -151,16 +153,21 @@ def show_payment_page():
                 'quantity': 1,
             }],
             mode='subscription',
-            success_url="https://nichosec-v2.onrender.com/?page=Success",
-            cancel_url="https://nichosec-v2.onrender.com/?page=Cancel",
+            success_url="https://nichosec-v2.onrender.com/?session_id={CHECKOUT_SESSION_ID}",
+            cancel_url="https://nichosec-v2.onrender.com/?cancelled=1",
         )
-        st.write("Redirecting to Stripe...")
-        st.markdown(f"[Click here if not redirected]({session.url})")
-        st.query_params["redirect"] = session.url
+
+        st.info("Opening Stripe Checkout…")
+        st.markdown(f"[Click here to continue →]({session.url})")
+        
+        # Update query params properly
+        st.query_params = {"redirect": session.url}
+
 
 def show_success():
     st.success("✅ You're now subscribed to NichoSec Pro!")
     st.balloons()
+
 
 def show_cancel():
     st.warning("❌ Subscription was cancelled. Feel free to try again anytime.")
@@ -197,78 +204,83 @@ st.set_page_config(page_title="NichoSec | Local Threat Scanner",
 from dotenv import load_dotenv
 load_dotenv()                                          # .env → env vars
 
-# ── SIDEBAR NAVIGATION + BACKGROUND IMAGE ────────────────────────────────
-st.sidebar.title(" NichoSec")
-page = st.sidebar.radio("Navigate", [
-    "Scan",
-    "Dashboard",
-    "Privacy Policy",
-    "Terms of Service",
-    "Disclaimer",
-    "Subscribe",        # ← ADD
-    "Success",          # ← ADD
-    "Cancel"            # ← ADD
-])
+# ────────────────────────────────────────────────────────────────
+# SIDEBAR NAVIGATION + BACKGROUND IMAGE
+# ────────────────────────────────────────────────────────────────
 
+st.sidebar.title("NichoSec")
 
-# right above bg_b64
-HERE = Path(__file__).parent          # folder that contains this .py file
-bg_path = HERE / "NichoSec brain.png"  # → ui/NichoSec brain.png
-bg_b64  = to_base64(bg_path)
-
-
-st.markdown(
-    f"""
-    <style>
-      .stApp {{
-        background: url("data:image/png;base64,{bg_b64}") no-repeat center center fixed;
-        background-size: cover;
-      }}
-      .stApp:before {{
-        content: ""; position: fixed; inset: 0;
-        background: rgba(0,0,0,0.85); backdrop-filter: blur(4px); z-index: -1;
-      }}
-      .card {{
-        background: rgba(255,255,255,0.70); padding: 2rem 1.5rem; border-radius: 12px;
-        margin-bottom: 2rem; box-shadow: 0 4px 12px rgba(0,0,0,0.45); color: #111;
-      }}
-      .card * {{ color: #111 !important; }}
-      .nichosec-header {{ display:flex; justify-content:center; align-items:center; gap:0.6rem; margin:0.4rem 0 1.0rem; }}
-      .nichosec-header h1 {{ margin:0; font-size:2rem; font-weight:600; }}
-    </style>
-    """,
-    unsafe_allow_html=True,
+page = st.sidebar.radio(
+    "Navigate",
+    ["Scan", "Dashboard", "Privacy Policy", "Terms of Service",
+     "Disclaimer", "Subscribe", "Success", "Cancel"]
 )
 
+# Load background
+HERE = Path(__file__).parent
+bg_path = HERE / "NichoSec brain.png"
+bg_b64 = to_base64(bg_path)
 
- # GMAIL LOADER
+st.markdown(f"""
+<style>
+  .stApp {{
+    background: url("data:image/png;base64,{bg_b64}") no-repeat center center fixed;
+    background-size: cover;
+  }}
+  .stApp:before {{
+    content: ""; position: fixed; inset: 0;
+    background: rgba(0,0,0,0.85); backdrop-filter: blur(4px); z-index: -1;
+  }}
+  .card {{
+    background: rgba(255,255,255,0.70); padding: 2rem 1.5rem; border-radius: 12px;
+    margin-bottom: 2rem; box-shadow: 0 4px 12px rgba(0,0,0,0.45); color: #111;
+  }}
+  .card * {{ color: #111 !important; }}
+  .nichosec-header {{
+    display:flex; justify-content:center; align-items:center; 
+    gap:0.6rem; margin:0.4rem 0 1.0rem;
+  }}
+  .nichosec-header h1 {{
+    margin:0; font-size:2rem; font-weight:600;
+  }}
+</style>
+""", unsafe_allow_html=True)
+
+
+# ────────────────────────────────────────────────────────────────
+# GMAIL LOADER
+# ────────────────────────────────────────────────────────────────
 
 with st.sidebar.expander("📧 Gmail Loader", expanded=False):
     st.info("Securely scan emails from your Gmail inbox.")
 
     if st.button("🔐 Connect Gmail"):
         try:
-            st.session_state.gmail_msgs = gmail_loader.get_recent_emails(10)
-            st.success(f"{len(st.session_state.gmail_msgs)} messages loaded.")
+            msgs = gmail_loader.get_recent_emails(10)
+            st.session_state.gmail_msgs = msgs
+            st.success(f"{len(msgs)} messages loaded.")
         except Exception as e:
             st.error(f"Gmail load failed: {e}")
 
-    if "gmail_msgs" in st.session_state:
-        for msg_id, subject in st.session_state.gmail_msgs:
-            if st.button(f"Scan: {subject[:40]}...", key=f"gmail-scan-{msg_id}"):
+    msgs = st.session_state.get("gmail_msgs", [])
+    for msg_id, subject in msgs:
+        if st.button(f"Scan: {subject[:40]}...", key=f"gmail-scan-{msg_id}"):
 
-                raw = gmail_loader.fetch_email_raw(msg_id)
-                result = scan(raw)  # ✅ move this BEFORE using `result`
+            raw = gmail_loader.fetch_email_raw(msg_id)
+            result = scan(raw)
 
-                # Optional: flag it as a Gmail scan
-                result["source"] = "gmail"
-                result["subject"] = subject
+            result["source"] = "gmail"
+            result["subject"] = subject
 
-                user_id = st.session_state.get("user_email", str(uuid.uuid4()))
-                st.session_state[f"threat_{user_id}"] = result
+            user_id = st.session_state.get("user_email", str(uuid.uuid4()))
+            st.session_state[f"threat_{user_id}"] = result
 
-                st.success("✅ Scan complete. See main panel.")
+            st.success("✅ Scan complete. See main panel.")
 
+
+# ────────────────────────────────────────────────────────────────
+# PRO UPGRADE / STRIPE CHECKOUT
+# ────────────────────────────────────────────────────────────────
 
 with st.sidebar.expander("💳 Upgrade to Pro", expanded=False):
     st.markdown("Unlock full features, live scans, and pro exports.")
@@ -277,93 +289,95 @@ with st.sidebar.expander("💳 Upgrade to Pro", expanded=False):
         if DEV_MODE:
             st.info("DEV_MODE active — paywall disabled.")
         else:
-            # Original Stripe checkout logic
-            from src.core.stripe_checkout import create_checkout_session
+            try:
+                from src.core.stripe_checkout import create_checkout_session
 
-            email = st.session_state.get("user_email", "test@fake.com")
-            checkout_url = create_checkout_session(email)
+                email = st.session_state.get("user_email", "test@fake.com")
+                checkout_url = create_checkout_session(email)
 
-            if checkout_url:
-                st.success("Redirecting to Stripe Checkout…")
-                st.markdown(
-                    f"[Click here to continue →]({checkout_url})",
-                    unsafe_allow_html=True
-                )
-            else:
-                st.error("Failed to start Stripe session.")
+                if checkout_url:
+                    st.success("Opening Stripe Checkout…")
+                    st.markdown(
+                        f"[Click here to continue →]({checkout_url})",
+                        unsafe_allow_html=True
+                    )
+                else:
+                    st.error("Failed to start Stripe session.")
+
+            except Exception as e:
+                st.error(f"Stripe error: {e}")
 
 
+# ────────────────────────────────────────────────────────────────
+# NICH OSEC AI CHAT
+# ────────────────────────────────────────────────────────────────
 
+with st.sidebar.expander("💬 Ask NichoSec AI", expanded=False):
 
-# ────────────────────────────────────────────────────────────────────────────────
-
-with st.sidebar.expander("💬  Ask NichoSec AI", expanded=False):
-    # Step 0: Clear input box after response if flagged
+    # Wipe input when needed
     if st.session_state.pop("_reset_box", False):
         st.session_state.pop("chat_box", None)
 
-    # Step 1: Initialize chat history
+    # Chat initialization
     if "chat" not in st.session_state:
         st.session_state.chat = [
             {"role": "system", "content": NCHOSEC_SYSTEM_PROMPT},
             {"role": "assistant", "content":
-                "Welcome to NichoSec AI. I'm here to assist with threat analysis for emails, files, and IPs."},
+                "Welcome to NichoSec AI. I'm here to assist with threat analysis."},
         ]
 
-    # Step 2: Model selector
+    # Model selection
     model_name = st.radio(
         "Select AI Model:",
         ["gpt-3.5-turbo", "gpt-4o-mini"],
-        index=1, horizontal=True,
+        index=1,
+        horizontal=True,
         format_func=lambda m: "GPT-3.5" if m.startswith("gpt-3.5") else "GPT-4o Mini",
     )
 
-    # Step 3: Clear chat history
+    # Reset conversation
     if st.button("Reset Conversation"):
         st.session_state.pop("chat", None)
         st.rerun()
 
-    # Step 4: Display message history (excluding system prompt)
+    # Render conversation
     for msg in st.session_state.chat:
         if msg["role"] != "system":
             st.markdown(msg["content"])
 
-    # Step 5: User input prompt
+    # Input box
     prompt = st.text_input(
         "Ask a Security Question:",
         key="chat_box",
         placeholder="e.g., Does this email look suspicious?",
     )
 
-    # Step 6: Submit and process response
+    # Send message
     if st.button("Send", key="chat_send") and prompt.strip():
-        # Append user input
         st.session_state.chat.append({"role": "user", "content": prompt})
 
-        # Limit memory for efficiency
-        trimmed_history = [st.session_state.chat[0]] + st.session_state.chat[-10:]
+        trimmed = [st.session_state.chat[0]] + st.session_state.chat[-10:]
 
         try:
             resp = client.chat.completions.create(
                 model=model_name,
-                messages=trimmed_history,
+                messages=trimmed,
                 temperature=0.3,
                 stream=True,
             )
 
-            placeholder, assistant_reply = st.empty(), ""
+            placeholder, reply = st.empty(), ""
             with st.spinner("Analyzing..."):
                 for chunk in resp:
-                    assistant_reply += chunk.choices[0].delta.content or ""
-                    placeholder.markdown(assistant_reply)
+                    reply += chunk.choices[0].delta.content or ""
+                    placeholder.markdown(reply)
 
-            # Store assistant reply
-            st.session_state.chat.append({"role": "assistant", "content": assistant_reply})
+            st.session_state.chat.append({"role": "assistant", "content": reply})
             st.session_state.chat = [st.session_state.chat[0]] + st.session_state.chat[-10:]
             st.session_state._reset_box = True
 
-        except (RateLimitError, APIError) as e:
-            st.error(f"OpenAI API Error: {e.__class__.__name__}: {e}")
+        except Exception as e:
+            st.error(f"AI Error: {e}")
 
 def show_scan_ui():
     # ── HEADER ─────────────────────────────────────────────────────
